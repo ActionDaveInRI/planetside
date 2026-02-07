@@ -1,0 +1,2940 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Planetside Photo Mode — Pixcel Planet++ (v17 Extreme Options)heres)</title>
+  <style>
+    html, body { margin:0; height:100%; overflow:hidden; background:#000; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
+    canvas { width:100vw; height:100vh; display:block; }
+
+    /* HUD (draggable, minimizable) */
+    #hud{
+      position:fixed; left:12px; top:12px; z-index:10;
+      color:#d8f2ff;
+      background:rgba(0,0,0,.38);
+      border:1px solid rgba(140,210,255,.22);
+      border-radius:12px;
+      backdrop-filter: blur(6px);
+      user-select:none;
+      max-width: 110ch;
+      pointer-events:none;
+      box-shadow: 0 14px 60px rgba(0,0,0,.35);
+    }
+    #hudHeader{
+      pointer-events:auto;
+      display:flex; align-items:center; justify-content:space-between;
+      gap:10px;
+      padding:8px 10px;
+      border-radius:12px;
+      background:rgba(255,255,255,.04);
+      cursor:grab;
+    }
+    #hudHeader:active{ cursor:grabbing; }
+    #hudTitle{
+      font:12px/1.1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      opacity:.95;
+      letter-spacing:.2px;
+      white-space:nowrap;
+    }
+    #hudBtns{ display:flex; align-items:center; gap:8px; }
+    #hudText{
+      margin:0;
+      padding:8px 10px 10px 10px;
+      font:12px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      white-space:pre;
+      pointer-events:none;
+      max-width: 110ch;
+    }
+    #hud.minimized #hudText{ display:none; }
+    #hud.hidden{ display:none; }
+    #hud .miniBtn{
+      pointer-events:auto;
+      cursor:pointer;
+      border-radius:10px;
+      border:1px solid rgba(140,210,255,.25);
+      background:rgba(20,30,60,.55);
+      color:#e6f4ff;
+      padding:4px 10px;
+      font-size:12px;
+    }
+    #hud .miniBtn:hover{ background:rgba(40,60,110,.55); }
+
+    /* Controls panel */
+    #panel{
+      position:fixed; right:12px; top:12px; z-index:20;
+      width: 360px; max-height: calc(100vh - 24px);
+      overflow:auto;
+      color:#eaf7ff;
+      background: rgba(0,0,0,.55);
+      border: 1px solid rgba(150,200,255,.22);
+      border-radius: 14px;
+      padding: 10px 12px 12px;
+      backdrop-filter: blur(8px);
+      font: 12px/1.25 system-ui, sans-serif;
+    }
+    #panel h3{ margin: 6px 0 8px; font-size: 13px; color:#e9fbff; letter-spacing: .2px; }
+    #panel .row{ display:grid; grid-template-columns: 1fr 72px; gap: 10px; align-items:center; margin: 6px 0; }
+    #panel label{ color:#bfe8ff; }
+    #panel .val{ text-align:right; color:#fff; font-variant-numeric: tabular-nums; }
+    #panel input[type="range"], #panel select{ width: 100%; }
+    #panel .btnrow{ display:flex; gap:8px; margin-top:10px; }
+    #panel button{
+      flex:1;
+      border:1px solid rgba(150,200,255,.22);
+      background:rgba(20,40,60,.35);
+      color:#e9fbff;
+      padding:8px 10px;
+      border-radius:10px;
+      cursor:pointer;
+    }
+    #panel button:hover{ background:rgba(20,40,60,.5); }
+    #panel .small{ font-size:11px; opacity:.9; }
+
+    /* Composition overlay: rule of thirds */
+    #thirds{
+      position: fixed; inset: 0; pointer-events:none; z-index: 15;
+      display:none;
+    }
+    #thirds::before, #thirds::after{
+      content:"";
+      position:absolute; inset:0;
+      background:
+        linear-gradient(to right,
+          rgba(255,255,255,0) 0%,
+          rgba(255,255,255,0) calc(33.333% - 0.5px),
+          rgba(255,255,255,0.18) calc(33.333% - 0.5px),
+          rgba(255,255,255,0.18) calc(33.333% + 0.5px),
+          rgba(255,255,255,0) calc(33.333% + 0.5px),
+          rgba(255,255,255,0) calc(66.666% - 0.5px),
+          rgba(255,255,255,0.18) calc(66.666% - 0.5px),
+          rgba(255,255,255,0.18) calc(66.666% + 0.5px),
+          rgba(255,255,255,0) calc(66.666% + 0.5px),
+          rgba(255,255,255,0) 100%),
+        linear-gradient(to bottom,
+          rgba(255,255,255,0) 0%,
+          rgba(255,255,255,0) calc(33.333% - 0.5px),
+          rgba(255,255,255,0.18) calc(33.333% - 0.5px),
+          rgba(255,255,255,0.18) calc(33.333% + 0.5px),
+          rgba(255,255,255,0) calc(33.333% + 0.5px),
+          rgba(255,255,255,0) calc(66.666% - 0.5px),
+          rgba(255,255,255,0.18) calc(66.666% - 0.5px),
+          rgba(255,255,255,0.18) calc(66.666% + 0.5px),
+          rgba(255,255,255,0) calc(66.666% + 0.5px),
+          rgba(255,255,255,0) 100%);
+    }
+  </style>
+
+  <!-- Import map for Three.js (module build) -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.159.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.159.0/examples/jsm/"
+    }
+  }
+  </script>
+
+  <!-- CPU simplex noise (for camera ground-follow) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/simplex-noise/2.4.0/simplex-noise.min.js"></script>
+
+  <!-- GLSL: planet surface (derivative-normal, multi-octave, aerial perspective) -->
+  <script id="planetVS" type="x-shader/x-vertex">
+    // Simplex Noise by Stefan Gustavson (same core as Pixcel)
+    vec3 mod289(vec3 x) { return x - floor(x * (1.0/289.0)) * 289.0; }
+    vec4 mod289(vec4 x) { return x - floor(x * (1.0/289.0)) * 289.0; }
+    vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
+    vec4 taylorInvSqrt(vec4 r){ return 1.79284291400159 - 0.85373472095314 * r; }
+
+    float snoise(vec3 v){
+      const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+      const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+
+      vec3 i = floor(v + dot(v, vec3(C.y)));
+      vec3 x0 = v - i + dot(i, vec3(C.x));
+
+      vec3 g = step(x0.yzx, x0.xyz);
+      vec3 l = 1.0 - g;
+      vec3 i1 = min(g, l.zxy);
+      vec3 i2 = max(g, l.zxy);
+
+      vec3 x1 = x0 - i1 + C.x;
+      vec3 x2 = x0 - i2 + 2.0 * C.x;
+      vec3 x3 = x0 - 1.0 + 3.0 * C.x;
+
+      i = mod289(i);
+      vec4 p = permute(permute(permute(
+                i.z + vec4(0.0, i1.z, i2.z, 1.0))
+              + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+              + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+
+      float n_ = 1.0/7.0;
+      vec3 ns = n_ * D.wyz - D.xzx;
+
+      vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+
+      vec4 x_ = floor(j * ns.z);
+      vec4 y_ = floor(j - 7.0 * x_);
+
+      vec4 x = x_ * ns.x + ns.yyyy;
+      vec4 y = y_ * ns.x + ns.yyyy;
+      vec4 h = 1.0 - abs(x) - abs(y);
+
+      vec4 b0 = vec4(x.xy, y.xy);
+      vec4 b1 = vec4(x.zw, y.zw);
+
+      vec4 s0 = floor(b0)*2.0 + 1.0;
+      vec4 s1 = floor(b1)*2.0 + 1.0;
+      vec4 sh = -step(h, vec4(0.0));
+
+      vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy;
+      vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
+
+      vec3 g0 = vec3(a0.x, a0.y, h.x);
+      vec3 g1 = vec3(a0.z, a0.w, h.y);
+      vec3 g2 = vec3(a1.x, a1.y, h.z);
+      vec3 g3 = vec3(a1.z, a1.w, h.w);
+
+      vec4 norm = taylorInvSqrt(vec4(dot(g0,g0), dot(g1,g1), dot(g2,g2), dot(g3,g3)));
+      g0 *= norm.x;
+      g1 *= norm.y;
+      g2 *= norm.z;
+      g3 *= norm.w;
+
+      vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+      m = m * m;
+      return 42.0 * dot(m*m, vec4(dot(g0,x0), dot(g1,x1), dot(g2,x2), dot(g3,x3)));
+    }
+
+    uniform float uNoiseScale;
+    uniform float uHeightAmp;
+    uniform float uSeaLevel;
+    uniform vec3  uSeed;
+    uniform float uTime;
+
+    varying vec3  vWorldPos;
+    varying vec3  vDir;
+    varying float vRaw;
+    varying float vH;
+
+    float fbm(vec3 p){
+      float sum = 0.0;
+      float amp = 0.55;
+      float freq = 1.0;
+      for (int i=0; i<6; i++){
+        sum += amp * snoise(p * freq);
+        freq *= 2.02;
+        amp *= 0.52;
+      }
+      return sum;
+    }
+
+    float ridged(vec3 p){
+      float sum = 0.0;
+      float amp = 0.55;
+      float freq = 1.0;
+      for (int i=0; i<5; i++){
+        float n = snoise(p * freq);
+        float r = 1.0 - abs(n);
+        sum += amp * r * r;
+        freq *= 2.04;
+        amp *= 0.55;
+      }
+      return sum;
+    }
+
+    void main(){
+      vec3 dir = normalize(position);
+      vDir = dir;
+
+      // Domain-warped macro/micro terrain
+      vec3 p = dir * uNoiseScale + uSeed;
+      vec3 w = vec3(
+        fbm(p + vec3(10.1, 3.7, -6.2)),
+        fbm(p + vec3(-1.1, 12.4, 4.3)),
+        fbm(p + vec3(6.9, -8.2, 14.8))
+      );
+      p += 0.33 * w;
+
+      float continents = fbm(p * 0.35);
+      float mountains  = ridged(p * 2.30);
+      float detail     = fbm(p * 6.50);
+
+      float e = 0.62*continents + 0.34*mountains + 0.04*detail;
+      float raw = e * uHeightAmp;
+      float h = max(0.0, raw - uSeaLevel);
+
+      vRaw = raw;
+      vH = h;
+
+      vec3 displaced = dir * (1.0 + h);
+      vec4 wpos = modelMatrix * vec4(displaced, 1.0);
+      vWorldPos = wpos.xyz;
+
+      gl_Position = projectionMatrix * viewMatrix * wpos;
+    }
+  </script>
+
+  <script id="planetFS" type="x-shader/x-fragment">
+    precision highp float;
+
+    uniform vec3  uLightDir;
+    uniform vec3  uCameraPos;
+    uniform float uTemperature;
+    uniform float uSeaLevel;
+    uniform float uExposure;
+    uniform float uHaze;
+
+    uniform vec3  uSeed;
+    uniform float uTime;
+
+    // Clouds (also used for ground shadows)
+    uniform float uCloudScale;
+    uniform float uCloudSpeed;
+    uniform float uCloudCoverage;
+    uniform float uCloudSoftness;
+    uniform float uCloudShadowStrength;
+
+    varying vec3  vWorldPos;
+    varying vec3  vDir;
+    varying float vRaw;
+    varying float vH;
+
+    // ---------- Simplex noise (Stefan Gustavson) ----------
+    vec3 mod289(vec3 x) { return x - floor(x * (1.0/289.0)) * 289.0; }
+    vec4 mod289(vec4 x) { return x - floor(x * (1.0/289.0)) * 289.0; }
+    vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
+    vec4 taylorInvSqrt(vec4 r){ return 1.79284291400159 - 0.85373472095314 * r; }
+
+    float snoise(vec3 v){
+      const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+      const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+
+      vec3 i = floor(v + dot(v, vec3(C.y)));
+      vec3 x0 = v - i + dot(i, vec3(C.x));
+
+      vec3 g = step(x0.yzx, x0.xyz);
+      vec3 l = 1.0 - g;
+      vec3 i1 = min(g, l.zxy);
+      vec3 i2 = max(g, l.zxy);
+
+      vec3 x1 = x0 - i1 + C.x;
+      vec3 x2 = x0 - i2 + 2.0 * C.x;
+      vec3 x3 = x0 - 1.0 + 3.0 * C.x;
+
+      i = mod289(i);
+      vec4 p = permute(permute(permute(
+                i.z + vec4(0.0, i1.z, i2.z, 1.0))
+              + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+              + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+
+      float n_ = 1.0/7.0;
+      vec3 ns = n_ * D.wyz - D.xzx;
+
+      vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+
+      vec4 x_ = floor(j * ns.z);
+      vec4 y_ = floor(j - 7.0 * x_);
+
+      vec4 x = x_ * ns.x + ns.yyyy;
+      vec4 y = y_ * ns.x + ns.yyyy;
+      vec4 h = 1.0 - abs(x) - abs(y);
+
+      vec4 b0 = vec4(x.xy, y.xy);
+      vec4 b1 = vec4(x.zw, y.zw);
+
+      vec4 s0 = floor(b0)*2.0 + 1.0;
+      vec4 s1 = floor(b1)*2.0 + 1.0;
+      vec4 sh = -step(h, vec4(0.0));
+
+      vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy;
+      vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
+
+      vec3 g0 = vec3(a0.x, a0.y, h.x);
+      vec3 g1 = vec3(a0.z, a0.w, h.y);
+      vec3 g2 = vec3(a1.x, a1.y, h.z);
+      vec3 g3 = vec3(a1.z, a1.w, h.w);
+
+      vec4 norm = taylorInvSqrt(vec4(dot(g0,g0), dot(g1,g1), dot(g2,g2), dot(g3,g3)));
+      g0 *= norm.x;
+      g1 *= norm.y;
+      g2 *= norm.z;
+      g3 *= norm.w;
+
+      vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+      m = m * m;
+      return 42.0 * dot(m*m, vec4(dot(g0,x0), dot(g1,x1), dot(g2,x2), dot(g3,x3)));
+    }
+
+    float fbm4(vec3 p){
+      float sum = 0.0;
+      float amp = 0.55;
+      float freq = 1.0;
+      for (int i=0; i<4; i++){
+        sum += amp * snoise(p * freq);
+        freq *= 2.02;
+        amp *= 0.55;
+      }
+      return sum;
+    }
+
+    // ---------- helpers ----------
+    vec3 sat(vec3 c, float s){
+      float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+      return mix(vec3(l), c, s);
+    }
+
+    float smooth01(float a, float b, float x){
+      float t = clamp((x-a)/(b-a), 0.0, 1.0);
+      return t*t*(3.0-2.0*t);
+    }
+
+    void main(){
+      // True normal from displaced world position (derivatives)
+      vec3 dx = dFdx(vWorldPos);
+      vec3 dy = dFdy(vWorldPos);
+      vec3 N = normalize(cross(dx, dy));
+      if (!gl_FrontFacing) N = -N;
+
+      vec3 V = normalize(uCameraPos - vWorldPos);
+      vec3 L = normalize(uLightDir);
+      vec3 H = normalize(L + V);
+
+      float NoL = max(dot(N, L), 0.0);
+      float NoV = max(dot(N, V), 0.0);
+
+      // Radial direction (for slope)
+      vec3 radial = normalize(vWorldPos);
+      float slope = 1.0 - clamp(dot(N, radial), 0.0, 1.0);
+
+      // Latitude (0=equator, 1=poles)
+      float lat = abs(radial.y);
+
+      // Temperature warps lat bands (like Pixcel’s biome remap)
+      float t = clamp(uTemperature, 0.05, 0.95);
+      float remapT = (t - 0.05) / 0.90;
+      float latShift = (0.5 - remapT) * 0.25;
+      float latEff = clamp(lat + latShift, 0.0, 1.0);
+
+      // Elevation signal (raw includes below-sea)
+      float e = vRaw;
+      float aboveSea = max(0.0, e - uSeaLevel);
+      float land = smooth01(0.0, 0.006, aboveSea);
+
+      // Water depth cue
+      float depth = smooth01(-0.06, 0.0, e - uSeaLevel);
+
+      // Micro variation (higher "rez" look without more geo)
+      float micro = fbm4(radial * 32.0 + uSeed * 1.7);
+      micro = 0.5*micro + 0.5;
+
+      // Base colors
+      vec3 deepWater    = vec3(0.02, 0.06, 0.13);
+      vec3 shallowWater = vec3(0.05, 0.18, 0.22);
+
+      vec3 beach  = vec3(0.56, 0.50, 0.34);
+      vec3 grass  = vec3(0.12, 0.34, 0.16);
+      vec3 forest = vec3(0.08, 0.26, 0.14);
+      vec3 rock   = vec3(0.34, 0.32, 0.30);
+      vec3 snow   = vec3(0.90, 0.94, 1.00);
+
+      // Water shading + spec
+      vec3 waterCol = mix(deepWater, shallowWater, depth);
+      float fres = pow(1.0 - NoV, 5.0);
+      float wSpec = pow(max(dot(N, H), 0.0), 160.0) * (0.05 + 0.45*fres);
+      waterCol += vec3(0.65, 0.78, 0.92) * wSpec;
+
+      // Land biome by latitude + elevation + slope
+      float cold = smooth01(0.55, 0.92, latEff);
+      float highAlt = smooth01(0.05, 0.14, aboveSea);
+
+      // Vegetation-ish factor
+      float forestMask = smooth01(0.18, 0.70, 1.0-latEff) * (1.0 - smooth01(0.06, 0.14, aboveSea));
+      forestMask *= (0.70 + 0.30*micro);
+
+      vec3 landCol = mix(grass, forest, forestMask);
+
+      // Coast band: only very near sea level
+      float beachMask = land * (1.0 - smooth01(0.004, 0.030, aboveSea));
+      landCol = mix(landCol, beach, beachMask);
+
+      // Rock on steep slopes or higher alt
+      float rockiness = smooth01(0.18, 0.65, slope) * (0.35 + 0.65*highAlt);
+      landCol = mix(landCol, rock, rockiness);
+
+      // Snow in cold or very high
+      float snowMask = max(cold*0.88, smooth01(0.11, 0.18, aboveSea));
+      landCol = mix(landCol, snow, snowMask);
+
+      // Extra albedo detail
+      landCol *= (0.92 + 0.16*micro);
+      landCol = sat(landCol, 1.08);
+
+      vec3 baseCol = mix(waterCol, landCol, land);
+
+      // Lighting (softer ramp + stabilized normals)
+      // Blend derivative normal with geometric radial normal to avoid harsh micro-faceting
+      vec3 Ngeo = normalize(vDir);
+      N = normalize(mix(Ngeo, N, 0.75));
+
+      float ambient = 0.20;
+      // Soft diffuse ramp (prevents harsh transitions)
+      float diff = smoothstep(0.02, 1.0, NoL);
+
+      // Specular: reduced power/strength (avoids "plastic bands" on terrain)
+      float specPow = mix(28.0, 70.0, 1.0-land);
+      float specStr = mix(0.03, 0.18, 1.0-land);
+      float spec = pow(max(dot(N, H), 0.0), specPow) * specStr;
+
+      vec3 lit = baseCol * (ambient + diff) + vec3(spec);
+// Cloud shadows (computed from same noise as clouds layer)
+      float cs = max(0.0, uCloudShadowStrength);
+      if (cs > 0.001){
+        float ang = uTime * uCloudSpeed * 0.25;
+        float sa = sin(ang), ca = cos(ang);
+        vec3 dC = normalize(vDir);
+        dC = vec3(ca*dC.x + sa*dC.z, dC.y, -sa*dC.x + ca*dC.z);
+        float cn = fbm4(dC * uCloudScale + uSeed);
+cn = 0.5*cn + 0.5;
+        float cd = smoothstep(uCloudCoverage, uCloudCoverage + uCloudSoftness, cn);
+        float shade = 1.0 - cs * cd * (0.25 + 0.75*NoL);
+        lit *= shade;
+      }
+
+      // Aerial perspective / horizon haze: grazing angles + distance
+      float grazing = pow(1.0 - NoV, 2.2);
+      float dist = length(uCameraPos - vWorldPos);
+      float fog = uHaze * grazing * smooth01(0.0, 6.0, dist);
+      vec3 hazeCol = mix(vec3(0.03,0.05,0.08), vec3(0.18,0.22,0.30), 0.65);
+      lit = mix(lit, hazeCol, clamp(fog, 0.0, 0.92));
+
+      // Exposure
+      lit *= uExposure;
+
+      gl_FragColor = vec4(lit, 1.0);
+    }
+</script>
+
+  <!-- Atmosphere shell (cheap scattering + sun glow) -->
+  <script id="atmoVS" type="x-shader/x-vertex">
+    varying vec3 vWorldPos;
+    varying vec3 vNormalW;
+    void main(){
+      vec4 wpos = modelMatrix * vec4(position, 1.0);
+      vWorldPos = wpos.xyz;
+      vNormalW = normalize((modelMatrix * vec4(normal, 0.0)).xyz);
+      gl_Position = projectionMatrix * viewMatrix * wpos;
+    }
+  </script>
+
+  <script id="atmoFS" type="x-shader/x-fragment">
+    precision highp float;
+    uniform vec3  uLightDir;
+    uniform vec3  uCameraPos;
+    uniform vec3  uAtmoColor;
+    uniform float uAtmoDensity;
+    uniform float uAtmoSun;
+
+    varying vec3 vWorldPos;
+    varying vec3 vNormalW;
+
+    float smooth01(float a, float b, float x){
+      float t = clamp((x-a)/(b-a), 0.0, 1.0);
+      return t*t*(3.0-2.0*t);
+    }
+
+    void main(){
+      vec3 N = normalize(vNormalW);
+      vec3 V = normalize(uCameraPos - vWorldPos);
+      vec3 L = normalize(uLightDir);
+
+      float NoV = max(dot(N, V), 0.0);
+      float NoL = max(dot(N, L), 0.0);
+
+      // Rim thickness
+      float rim = pow(1.0 - NoV, 2.5);
+
+      // Forward scattering toward sun
+      float sunAlign = pow(max(dot(V, L), 0.0), 22.0);
+
+      float a = uAtmoDensity * (0.15 + 1.20*rim) + uAtmoSun * sunAlign;
+      a = clamp(a, 0.0, 0.92);
+
+      vec3 col = uAtmoColor * (0.25 + 1.15*NoL) + vec3(1.0,0.92,0.80)*sunAlign*0.85;
+      col *= (0.8 + 0.6*rim);
+
+      gl_FragColor = vec4(col, a);
+    }
+  </script>
+
+  
+  <!-- Clouds shell (procedural + animated) -->
+  <script id="cloudVS" type="x-shader/x-vertex">
+    varying vec3 vWorldPos;
+    varying vec3 vNormalW;
+    varying vec3 vDir;
+    void main(){
+      vDir = normalize(position);
+      vec4 wpos = modelMatrix * vec4(position, 1.0);
+      vWorldPos = wpos.xyz;
+      vNormalW = normalize((modelMatrix * vec4(normal, 0.0)).xyz);
+      gl_Position = projectionMatrix * viewMatrix * wpos;
+    }
+  </script>
+
+  <script id="cloudFS" type="x-shader/x-fragment">
+    precision highp float;
+
+    uniform vec3  uLightDir;
+    uniform vec3  uCameraPos;
+
+    uniform vec3  uSeed;
+    uniform float uTime;
+
+    uniform vec3  uCloudColor;
+    uniform float uCloudOpacity;
+    uniform float uCloudScale;
+    uniform float uCloudSpeed;
+    uniform float uCloudCoverage;
+    uniform float uCloudSoftness;
+
+    varying vec3 vWorldPos;
+    varying vec3 vNormalW;
+    varying vec3 vDir;
+
+    // Simplex noise (same core)
+    vec3 mod289(vec3 x) { return x - floor(x * (1.0/289.0)) * 289.0; }
+    vec4 mod289(vec4 x) { return x - floor(x * (1.0/289.0)) * 289.0; }
+    vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
+    vec4 taylorInvSqrt(vec4 r){ return 1.79284291400159 - 0.85373472095314 * r; }
+
+    float snoise(vec3 v){
+      const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+      const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+
+      vec3 i = floor(v + dot(v, vec3(C.y)));
+      vec3 x0 = v - i + dot(i, vec3(C.x));
+
+      vec3 g = step(x0.yzx, x0.xyz);
+      vec3 l = 1.0 - g;
+      vec3 i1 = min(g, l.zxy);
+      vec3 i2 = max(g, l.zxy);
+
+      vec3 x1 = x0 - i1 + C.x;
+      vec3 x2 = x0 - i2 + 2.0 * C.x;
+      vec3 x3 = x0 - 1.0 + 3.0 * C.x;
+
+      i = mod289(i);
+      vec4 p = permute(permute(permute(
+                i.z + vec4(0.0, i1.z, i2.z, 1.0))
+              + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+              + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+
+      float n_ = 1.0/7.0;
+      vec3 ns = n_ * D.wyz - D.xzx;
+
+      vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+
+      vec4 x_ = floor(j * ns.z);
+      vec4 y_ = floor(j - 7.0 * x_);
+
+      vec4 x = x_ * ns.x + ns.yyyy;
+      vec4 y = y_ * ns.x + ns.yyyy;
+      vec4 h = 1.0 - abs(x) - abs(y);
+
+      vec4 b0 = vec4(x.xy, y.xy);
+      vec4 b1 = vec4(x.zw, y.zw);
+
+      vec4 s0 = floor(b0)*2.0 + 1.0;
+      vec4 s1 = floor(b1)*2.0 + 1.0;
+      vec4 sh = -step(h, vec4(0.0));
+
+      vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy;
+      vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
+
+      vec3 g0 = vec3(a0.x, a0.y, h.x);
+      vec3 g1 = vec3(a0.z, a0.w, h.y);
+      vec3 g2 = vec3(a1.x, a1.y, h.z);
+      vec3 g3 = vec3(a1.z, a1.w, h.w);
+
+      vec4 norm = taylorInvSqrt(vec4(dot(g0,g0), dot(g1,g1), dot(g2,g2), dot(g3,g3)));
+      g0 *= norm.x;
+      g1 *= norm.y;
+      g2 *= norm.z;
+      g3 *= norm.w;
+
+      vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+      m = m * m;
+      return 42.0 * dot(m*m, vec4(dot(g0,x0), dot(g1,x1), dot(g2,x2), dot(g3,x3)));
+    }
+
+    float fbm(vec3 p){
+      float sum = 0.0;
+      float amp = 0.55;
+      float freq = 1.0;
+      for (int i=0; i<4; i++){
+        sum += amp * snoise(p * freq);
+        freq *= 2.02;
+        amp *= 0.55;
+      }
+      return sum;
+    }
+
+    void main(){
+      vec3 N = normalize(vNormalW);
+      vec3 V = normalize(uCameraPos - vWorldPos);
+      vec3 L = normalize(uLightDir);
+
+      float NoL = max(dot(N, L), 0.0);
+      float NoV = max(dot(N, V), 0.0);
+
+      // Noise domain + rotation (avoids “generator/destroyer” seam artifacts)
+      float ang = uTime * uCloudSpeed * 0.25;
+      float sa = sin(ang), ca = cos(ang);
+      vec3 dirR = normalize(vDir);
+      dirR = vec3(ca*dirR.x + sa*dirR.z, dirR.y, -sa*dirR.x + ca*dirR.z);
+      float n = fbm(dirR * uCloudScale + uSeed);
+n = 0.5*n + 0.5;
+
+      float d = smoothstep(uCloudCoverage, uCloudCoverage + uCloudSoftness, n);
+      // Thin clouds at the limb a bit (photographic)
+      float limb = smoothstep(0.0, 0.35, NoV);
+      float alpha = d * uCloudOpacity * limb * (0.35 + 0.65*NoL);
+
+      if (alpha < 0.01) discard;
+
+      // Brightest near sun direction (forward scattering-ish)
+      float sunAlign = pow(max(dot(V, L), 0.0), 12.0);
+      vec3 col = uCloudColor * (0.55 + 0.55*NoL);
+      col += vec3(1.0, 0.95, 0.88) * sunAlign * 0.35;
+
+      gl_FragColor = vec4(col, alpha);
+    }
+  </script>
+
+
+  <!-- Sky dome (camera-centered gradient + sun disk) -->
+  <script id="skyVS" type="x-shader/x-vertex">
+    varying vec3 vDir;
+    void main(){
+      vDir = normalize(position);
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  </script>
+
+  <script id="skyFS" type="x-shader/x-fragment">
+    precision highp float;
+    uniform vec3 uSunDir;
+    uniform vec3 uUpDir;
+    uniform float uSkyExposure;
+
+    varying vec3 vDir;
+
+    float smooth01(float a, float b, float x){
+      float t = clamp((x-a)/(b-a), 0.0, 1.0);
+      return t*t*(3.0-2.0*t);
+    }
+
+    void main(){
+      vec3 d = normalize(vDir);
+      vec3 up = normalize(uUpDir);
+
+      float mu = dot(d, up);           // -1..1
+      float h  = 1.0 - abs(mu);        // 0 zenith/nadir, 1 horizon band
+      float horizon = smooth01(0.0, 1.0, pow(h, 1.2));
+
+      vec3 zenithCol  = vec3(0.01, 0.02, 0.05);
+      vec3 horizonCol = vec3(0.06, 0.08, 0.11);
+
+      // Sun glow
+      vec3 sun = normalize(uSunDir);
+      float s = max(dot(d, sun), 0.0);
+      float sunDisk = pow(s, 220.0);
+      float sunGlow = pow(s, 24.0);
+
+      vec3 col = mix(zenithCol, horizonCol, horizon);
+      col += vec3(1.0, 0.94, 0.86) * (0.8*sunGlow + 5.5*sunDisk);
+
+      col *= uSkyExposure;
+      gl_FragColor = vec4(col, 1.0);
+    }
+  </script>
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <div id="hud" class="hud">
+    <div id="hudHeader">
+      <div id="hudTitle">HUD</div>
+      <div id="hudBtns">
+        <button class="miniBtn" id="hudMinBtn" title="Minimize">Min</button>
+        <button class="miniBtn" id="hudHideBtn" title="Hide HUD (H)">Hide</button>
+      </div>
+    </div>
+    <pre id="hudText">Booting…</pre>
+  </div>
+
+  <div id="thirds"></div>
+
+  <div id="panel">
+    <h3>Mode</h3>
+    <div class="btnrow">
+      <button id="btnMode">Enter Photo Mode (P)</button>
+      <button id="btnThirds">Thirds (Space)</button>
+    </div>
+    <div class="small" style="margin-top:8px; opacity:.9;">
+      Orbit: drag + wheel. Photo: drag pan/tilt; WASD move; wheel altitude; Q/E roll; double-click to set location.
+    </div>
+
+    <div style="height:1px; background:rgba(150,200,255,.18); margin:10px 0;"></div>
+
+    <h3>LOD + Quality</h3>
+    <div class="row">
+      <label>LOD mode</label>
+      <div class="val" id="v_lodMode"></div>
+      <select id="lodMode">
+        <option value="auto" selected>auto</option>
+        <option value="far">far</option>
+        <option value="mid">mid</option>
+        <option value="high">high</option>
+      </select>
+    </div>
+    <div class="row">
+      <label>Preset</label>
+      <div class="val" id="v_preset"></div>
+      <select id="presetSel">
+        <option value="default" selected>default</option>
+        <option value="best">best rn</option>
+      </select>
+    </div>
+    <div class="row"><label>Far→Mid threshold</label><div class="val" id="v_lod01"></div><input id="lod01" type="range" min="0.20" max="1.20" step="0.01" value="0.50" /></div>
+    <div class="row"><label>Mid→High threshold</label><div class="val" id="v_lod12"></div><input id="lod12" type="range" min="0.30" max="1.60" step="0.01" value="1.10" /></div>
+
+    <div class="row">
+      <label>Far sphere segs</label>
+      <div class="val" id="v_farSegs"></div>
+      <select id="farSegs">
+        <option value="128">128</option>
+        <option value="192">192</option>
+        <option value="256" selected>256</option>
+        <option value="384">384</option>
+        <option value="512">512</option>
+        <option value="768">768</option>
+        <option value="1024">1024</option>
+      </select>
+    </div>
+    <div class="row">
+      <label>Mid sphere segs</label>
+      <div class="val" id="v_midSegs"></div>
+      <select id="midSegs">
+        <option value="384">384</option>
+        <option value="512">512</option>
+        <option value="768" selected>768</option>
+        <option value="1024">1024</option>
+        <option value="1536">1536</option>
+        <option value="2048">2048</option>
+</select>
+    </div>
+    <div class="row">
+      <label>High sphere segs</label>
+      <div class="val" id="v_highSegs"></div>
+      <select id="highSegs">
+        <option value="1024">1024</option>
+        <option value="1536" selected>1536</option>
+        <option value="2048">2048</option>
+        <option value="2560">2560</option>
+        <option value="3072">3072</option>
+      </select>
+    </div>
+
+    <div class="row"><label>Extreme LODs</label><div class="val" id="v_extreme"></div><input id="extreme" type="checkbox" /></div>
+
+    <div class="row"><label>Wireframe</label><div class="val" id="v_wire"></div><input id="wire" type="checkbox" /></div>
+    <div class="row"><label>Auto segs</label><div class="val" id="v_autoSegs"></div><input id="autoSegs" type="checkbox" /></div>
+    <div class="row"><label>Auto quality</label><div class="val" id="v_autoQuality"></div><input id="autoQuality" type="checkbox" /></div>
+    <div class="row"><label>Target FPS</label><div class="val" id="v_targetFPS"></div><input id="targetFPS" type="range" min="30" max="90" step="1" value="60" /></div>
+    <div class="row"><label>Resolution scale</label><div class="val" id="v_resScale"></div><input id="resScale" type="range" min="0.60" max="2.00" step="0.01" value="1.35" /></div>
+    <div class="row"><label>Pixel ratio cap</label><div class="val" id="v_prCap"></div><input id="prCap" type="range" min="1.0" max="3.0" step="0.05" value="2.0" /></div>
+    <div class="row"><label>Detail (px/seg)</label><div class="val" id="v_lodPx"></div><input id="lodPx" type="range" min="0.25" max="18.0" step="0.05" value="4.0" /></div>
+
+
+    <div class="small" style="margin-top:6px; opacity:.8;">
+      Auto LOD uses planet diameter on screen (fraction of the smaller viewport dimension). Mid/High use full spheres (no camera-facing caps) to avoid view-locked artifacts.
+    </div>
+
+    <div style="height:1px; background:rgba(150,200,255,.18); margin:10px 0;"></div>
+
+    <h3>Terrain</h3>
+    <div class="row"><label>Height amp</label><div class="val" id="v_height"></div><input id="height" type="range" min="0.01" max="0.20" step="0.001" value="0.085"></div>
+    <div class="row"><label>Noise scale</label><div class="val" id="v_noise"></div><input id="noise" type="range" min="0.6" max="4.0" step="0.01" value="2.2"></div>
+    <div class="row"><label>Sea level</label><div class="val" id="v_sea"></div><input id="sea" type="range" min="-0.08" max="0.06" step="0.001" value="-0.012"></div>
+    <div class="row"><label>Temperature</label><div class="val" id="v_temp"></div><input id="temp" type="range" min="0" max="1" step="0.01" value="0.52"></div>
+
+    <div style="height:1px; background:rgba(150,200,255,.18); margin:10px 0;"></div>
+
+    <h3>Light + Atmosphere</h3>
+    <div class="row"><label>Sun azimuth</label><div class="val" id="v_sunAz"></div><input id="sunAz" type="range" min="-180" max="180" step="1" value="35"></div>
+    <div class="row"><label>Sun elevation</label><div class="val" id="v_sunEl"></div><input id="sunEl" type="range" min="-10" max="85" step="1" value="28"></div>
+    <div class="row"><label>Atmos density</label><div class="val" id="v_atmoD"></div><input id="atmoD" type="range" min="0" max="1" step="0.01" value="0.55"></div>
+    <div class="row"><label>Haze</label><div class="val" id="v_haze"></div><input id="haze" type="range" min="0" max="1" step="0.01" value="0.42"></div>
+    <div class="row"><label>Exposure</label><div class="val" id="v_exp"></div><input id="exp" type="range" min="0.4" max="2.2" step="0.01" value="1.05"></div>
+
+    
+    <div style="height:1px; background:rgba(150,200,255,.18); margin:10px 0;"></div>
+
+    <h3>Clouds</h3>
+    <div class="row"><label>Clouds</label><div class="val" id="v_cloudOn"></div><input id="cloudOn" type="checkbox" checked /></div>
+    <div class="row"><label>Cloud opacity</label><div class="val" id="v_cloudOp"></div><input id="cloudOp" type="range" min="0" max="1" step="0.01" value="0.55"></div>
+    <div class="row"><label>Cloud scale</label><div class="val" id="v_cloudScale"></div><input id="cloudScale" type="range" min="0.5" max="6.0" step="0.05" value="2.80"></div>
+    <div class="row"><label>Cloud coverage</label><div class="val" id="v_cloudCov"></div><input id="cloudCov" type="range" min="0.25" max="0.85" step="0.01" value="0.55"></div>
+    <div class="row"><label>Cloud softness</label><div class="val" id="v_cloudSoft"></div><input id="cloudSoft" type="range" min="0.01" max="0.25" step="0.005" value="0.10"></div>
+    <div class="row"><label>Cloud speed</label><div class="val" id="v_cloudSpeed"></div><input id="cloudSpeed" type="range" min="0.0" max="1.5" step="0.01" value="0.35"></div>
+    <div class="row"><label>Shadow strength</label><div class="val" id="v_cloudSh"></div><input id="cloudSh" type="range" min="0" max="1" step="0.01" value="0.45"></div>
+
+    <div style="height:1px; background:rgba(150,200,255,.18); margin:10px 0;"></div>
+
+    <h3>Ground Scatter</h3>
+    <div class="row"><label>Scatter</label><div class="val" id="v_scatterOn"></div><input id="scatterOn" type="checkbox" checked /></div>
+    <div class="row"><label>Density</label><div class="val" id="v_scatterDen"></div><input id="scatterDen" type="range" min="0" max="1" step="0.01" value="0.65"></div>
+    <div class="row"><label>Patch radius</label><div class="val" id="v_scatterRad"></div><input id="scatterRad" type="range" min="0.02" max="0.15" step="0.005" value="0.070"></div>
+
+
+    <div style="height:1px; background:rgba(150,200,255,.18); margin:10px 0;"></div>
+
+    <h3>Photo</h3>
+    <div class="row"><label>FOV</label><div class="val" id="v_fov"></div><input id="fov" type="range" min="18" max="90" step="1" value="42"></div>
+    <div class="row"><label>Altitude</label><div class="val" id="v_alt"></div><input id="alt" type="range" min="0.002" max="0.120" step="0.001" value="0.020"></div>
+
+    <div class="btnrow">
+      <button id="btnSeed">New Seed</button>
+      <button id="btnCopy">Copy Settings</button>
+    </div>
+    <textarea id="out" spellcheck="false" style="width:100%; height:110px; margin-top:10px; background:rgba(0,0,0,.35); color:#e9fbff; border:1px solid rgba(150,200,255,.18); border-radius:10px; padding:8px; font: 11px/1.25 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; resize: vertical;" placeholder="Copy Settings…"></textarea>
+  </div>
+
+
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+  const canvas = document.getElementById('c');
+  const hudEl = document.getElementById('hud');
+  const hudText = document.getElementById('hudText');
+  const hudHeader = document.getElementById('hudHeader');
+  const hudTitle = document.getElementById('hudTitle');
+  const hudMinBtn = document.getElementById('hudMinBtn');
+  const hudHideBtn = document.getElementById('hudHideBtn');
+  const thirds = document.getElementById('thirds');
+
+  // ---------- HUD interactions ----------
+  const hudDrag = { active:false, offX:0, offY:0, pid: -1 };
+
+  function saveHud(){
+    try{
+      const r = hudEl.getBoundingClientRect();
+      const s = { x: r.left, y: r.top, minimized: hudEl.classList.contains('minimized'), hidden: hudEl.classList.contains('hidden') };
+      localStorage.setItem('pp_hud', JSON.stringify(s));
+    } catch {}
+  }
+  function loadHud(){
+    try{
+      const raw = localStorage.getItem('pp_hud');
+      if (!raw) return;
+      const s = JSON.parse(raw);
+      if (typeof s.x === 'number') hudEl.style.left = Math.max(8, s.x) + 'px';
+      if (typeof s.y === 'number') hudEl.style.top  = Math.max(8, s.y) + 'px';
+      if (s.minimized) hudEl.classList.add('minimized');
+      if (s.hidden) hudEl.classList.add('hidden');
+    } catch {}
+  }
+  loadHud();
+
+  function toggleHudHidden(){
+    hudEl.classList.toggle('hidden');
+    saveHud();
+  }
+
+  hudMinBtn.addEventListener('click', ()=>{
+    hudEl.classList.toggle('minimized');
+    saveHud();
+  });
+  hudHideBtn.addEventListener('click', ()=>{
+    hudEl.classList.add('hidden');
+    saveHud();
+  });
+  hudHeader.addEventListener('dblclick', ()=>{
+    hudEl.classList.toggle('minimized');
+    saveHud();
+  });
+
+  hudHeader.addEventListener('pointerdown', (e)=>{
+    if (e.button !== 0) return;
+    if (hudEl.classList.contains('hidden')) return;
+    hudDrag.active = true;
+    hudDrag.pid = e.pointerId;
+    const r = hudEl.getBoundingClientRect();
+    hudDrag.offX = e.clientX - r.left;
+    hudDrag.offY = e.clientY - r.top;
+    hudHeader.setPointerCapture(e.pointerId);
+  });
+  hudHeader.addEventListener('pointermove', (e)=>{
+    if (!hudDrag.active) return;
+    const x = Math.max(8, Math.min(innerWidth - 80, e.clientX - hudDrag.offX));
+    const y = Math.max(8, Math.min(innerHeight - 40, e.clientY - hudDrag.offY));
+    hudEl.style.left = x + 'px';
+    hudEl.style.top  = y + 'px';
+  });
+  function endHudDrag(){
+    if (!hudDrag.active) return;
+    hudDrag.active = false;
+    hudDrag.pid = -1;
+    saveHud();
+  }
+  hudHeader.addEventListener('pointerup', endHudDrag);
+  hudHeader.addEventListener('pointercancel', endHudDrag);
+
+
+  // ---------- Params ----------
+  // (JS is the source of truth; UI syncs to these.)
+  const P = {
+    // LOD + Quality
+    lodMode: 'auto',        // auto | far | mid | high
+    lod01: 0.50,            // far -> mid when planet diameter fraction exceeds this
+    lod12: 1.10,            // mid -> high when planet diameter fraction exceeds this
+    farSegs: 512,
+    midSegs: 1536,
+    highSegs: 3072,
+    wire: false,
+    enableExtreme: false,
+
+    autoSegs: true,       // auto-pick segment counts based on screen size
+    autoQuality: true,    // adapt resolution/detail to keep FPS near target
+    targetFPS: 60,
+    resScale: 1.35,       // resolution scale (multiplies base DPR)
+    pixRatioCap: 2.0,    // max renderer pixelRatio (higher = sharper, heavier)
+    lodPx: 4.0,           // target pixels per segment at high LOD (lower = more detail)
+
+    // Terrain
+    heightAmp: 0.12,
+    noiseScale: 2.45,
+    seaLevel:  0.004,
+    temperature: 0.52,
+
+    // Light + air
+    sunAz: 35,
+    sunEl: 28,
+    atmoD: 0.72,
+    haze: 0.48,
+    exposure: 1.08,
+
+    // Clouds
+    cloudOn: true,
+    cloudOpacity: 0.62,
+    cloudScale: 3.10,
+    cloudCoverage: 0.62,
+    cloudSoftness: 0.14,
+    cloudSpeed: 0.35,
+    cloudShadowStrength: 0.55,
+
+    // Photo rig
+    fov: 42,
+    alt: 0.020,
+
+    // Scatter
+    scatterOn: true,
+    scatterDen: 0.92,
+    scatterRad: 0.090,
+
+    // Misc
+    atmoColor: new THREE.Color(0x8ac8ff),
+    cloudColor: new THREE.Color(0xffffff),
+  };
+
+
+  // ---- parameter normalization (defensive) ----
+  // Canonical name: cloudCoverage
+  if (P.cloudCoverage === undefined) {
+    if (P.cloudCover !== undefined) P.cloudCoverage = P.cloudCover;
+    if (P.cloudCoverageage !== undefined) P.cloudCoverage = P.cloudCoverageage;
+  }
+  delete P.cloudCover;
+  delete P.cloudCoverageage;
+
+  // Safe number formatting for HUD/UI (never throw)
+  function fmt(v, d=2){
+    const n = Number(v);
+    return Number.isFinite(n) ? n.toFixed(d) : '--';
+  }
+  function fmt0(v){ return fmt(v,0); }
+  function fmt1(v){ return fmt(v,1); }
+  function fmt2(v){ return fmt(v,2); }
+  function fmt3(v){ return fmt(v,3); }
+
+  // One-time param audit (logs, does not crash)
+  (function auditOnce(){
+    const keys = [
+      'cloudCoverage','cloudOpacity','cloudScale','cloudSoftness','cloudSpeed','cloudShadowStrength',
+      'resScale','lodPx','targetFPS','farSegs','midSegs','highSegs','enableExtreme',
+      'heightAmp','noiseScale','seaLevel','temperature',
+      'sunAz','sunEl','atmoD','haze','exposure',
+      'scatterDen','scatterRad'
+    ];
+    const missing = [];
+    const bad = [];
+    for (const k of keys){
+      if (!(k in P)) missing.push(k);
+      else {
+        const n = Number(P[k]);
+        if (!Number.isFinite(n)) bad.push(k);
+      }
+    }
+    if (missing.length) console.warn('[param audit] missing:', missing.join(', '));
+    if (bad.length) console.warn('[param audit] non-finite:', bad.join(', '));
+  })();
+
+  // ---------- Renderer / scene ----------
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:false, powerPreference:'high-performance' });
+  let baseDPR = Math.min(devicePixelRatio, 1.5);
+  function applyPixelRatio(){
+    baseDPR = Math.min(devicePixelRatio, 1.5);
+    renderer.setPixelRatio(Math.min(P.pixRatioCap, baseDPR * P.resScale));
+    renderer.setSize(innerWidth, innerHeight);
+  }
+  applyPixelRatio();
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+
+  const scene = new THREE.Scene();
+
+  const camera = new THREE.PerspectiveCamera(P.fov, innerWidth/innerHeight, 0.001, 80);
+  camera.position.set(0, 0.12, 2.9);
+
+  // Lights for “physical” meshes (rocks/plants). Planet itself is shader-lit.
+  const sunLight = new THREE.DirectionalLight(0xffffff, 1.2);
+  sunLight.position.set(3, 2, 1);
+  scene.add(sunLight);
+
+  const sunTarget = new THREE.Object3D();
+  sunTarget.position.set(0,0,0);
+  scene.add(sunTarget);
+  sunLight.target = sunTarget;
+
+  scene.add(new THREE.AmbientLight(0x223344, 0.35));
+
+  // ---------- Orbit controls (orbit mode) ----------
+  const orbit = new OrbitControls(camera, renderer.domElement);
+  orbit.enableDamping = true;
+  orbit.dampingFactor = 0.06;
+  orbit.target.set(0,0,0);
+  orbit.minDistance = 1.15;
+  orbit.maxDistance = 10.0;
+  orbit.enablePan = true;
+
+  // ---------- CPU noise for ground height (camera stays “above terrain”) ----------
+  let simplex = new SimplexNoise(String(Math.floor(Math.random()*1e9)));
+
+  function fbm3(x,y,z){
+    let sum = 0;
+    let amp = 0.55;
+    let freq = 1;
+    for(let i=0;i<6;i++){
+      sum += amp * simplex.noise3D(x*freq, y*freq, z*freq);
+      freq *= 2.02;
+      amp *= 0.52;
+    }
+    return sum;
+  }
+  function ridged3(x,y,z){
+    let sum = 0;
+    let amp = 0.55;
+    let freq = 1;
+    for(let i=0;i<5;i++){
+      const n = simplex.noise3D(x*freq, y*freq, z*freq);
+      const r = 1 - Math.abs(n);
+      sum += amp * r*r;
+      freq *= 2.04;
+      amp *= 0.55;
+    }
+    return sum;
+  }
+
+  // Shared “seed vector” used by shaders + CPU
+  const seedV = new THREE.Vector3(12.3, -3.7, 8.9);
+
+  // ---------- Planet shaders ----------
+  const BASE_PLANET_VS = document.getElementById('planetVS').textContent;
+  const BASE_PLANET_FS = document.getElementById('planetFS').textContent;
+
+
+  // ---------- Helpers ----------
+  function smoothstep01(a,b,x){
+    const t = Math.min(1, Math.max(0, (x-a)/(b-a)));
+    return t*t*(3-2*t);
+  }
+
+  function planetScreenMetrics(){
+    // Approx diameter fraction + pixel diameter of the planet on screen.
+    const d = camera.position.length();
+    const R = 1.0;
+
+    const w = renderer.domElement.clientWidth;
+    const h = renderer.domElement.clientHeight;
+    const denom = Math.min(w, h);
+
+    if (d <= R*1.00001){
+      return { frac: 10.0, diamPx: denom * 10.0, denom };
+    }
+
+    const vFov = THREE.MathUtils.degToRad(camera.fov);
+    const ang = Math.asin(R / d);
+    const rNdc = Math.tan(ang) / Math.tan(vFov/2);
+    const rPx = rNdc * (h * 0.5);
+    const diamPx = rPx * 2.0;
+
+    return { frac: diamPx / denom, diamPx, denom };
+  }
+
+  // ---------- CPU height for ground-follow ----------
+  function heightAtDirLocal(dir){
+    // Keep in sync with vertex shader (approx).
+    const x = dir.x*P.noiseScale + seedV.x;
+    const y = dir.y*P.noiseScale + seedV.y;
+    const z = dir.z*P.noiseScale + seedV.z;
+
+    const wx = fbm3(x + 10.1, y + 3.7,  z - 6.2);
+    const wy = fbm3(x - 1.1,  y + 12.4, z + 4.3);
+    const wz = fbm3(x + 6.9,  y - 8.2,  z + 14.8);
+
+    const px = x + 0.33*wx;
+    const py = y + 0.33*wy;
+    const pz = z + 0.33*wz;
+
+    const continents = fbm3(px*0.35, py*0.35, pz*0.35);
+    const mountains  = ridged3(px*2.30, py*2.30, pz*2.30);
+    const detail     = fbm3(px*6.50, py*6.50, pz*6.50);
+
+    const e = 0.62*continents + 0.34*mountains + 0.04*detail;
+    const raw = e * P.heightAmp;
+    const h = Math.max(0, raw - P.seaLevel);
+    return h;
+  }
+
+  // ---------- Planet group ----------
+  const planet = new THREE.Group();
+  scene.add(planet);
+
+  // Separate group for local “ground scatter” so we can toggle quickly
+  const scatterGroup = new THREE.Group();
+  planet.add(scatterGroup);
+
+  let surfaceFar = null;
+  let surfaceMid = null;
+  let surfaceHigh = null;
+  let cloudsMesh = null;
+  let atmoMesh = null;
+  let skyMesh = null;
+
+  // Active LOD (0=far sphere, 1=mid sphere, 2=high sphere)
+  let activeLOD = 0;
+
+  // ---------- Multithreaded sphere geometry builder ----------
+  // We build very high segment spheres off the main thread to avoid long hitches when you zoom in.
+  const SEG_BASE = [128,192,256,384,512,768,1024,1536,2048,2560,3072];
+  const SEG_EXTREME = [3584,4096,5120,6144,7168];
+  let SEG_OPTS = SEG_BASE.slice();
+  function applyExtremeMode(){
+    SEG_OPTS = P.enableExtreme ? SEG_BASE.concat(SEG_EXTREME) : SEG_BASE.slice();
+  }
+  applyExtremeMode();
+
+  const hugeOk = new Set();
+  function estimateSphereMB(segs){
+    const w = Math.max(8, segs|0);
+    const h = Math.max(8, (w/2)|0);
+    const vert = (w+1)*(h+1);
+    const bytes = (vert*3*4) + (vert*3*4) + (vert*2*4) + (w*h*6*4);
+    return bytes / (1024*1024);
+  }
+  function confirmHugeSphere(segs){
+    if (hugeOk.has(segs)) return true;
+    const mb = estimateSphereMB(segs);
+    const msg =
+      `Extreme sphere segs = ${segs} (height ${(segs/2)|0}).\n`+
+      `Approx geometry buffers: ${mb.toFixed(0)} MB.\n`+
+      `This may freeze the tab or crash due to memory.\n\nProceed?`;
+    const ok = window.confirm(msg);
+    if (ok) hugeOk.add(segs);
+    return ok;
+  }
+
+  function ensureSegOption(sel, v){
+    const sv = String(v);
+    for (const o of sel.options){ if (o.value === sv) return; }
+    const opt = document.createElement('option');
+    opt.value = sv;
+    opt.textContent = sv;
+    // insert sorted
+    for (let i=0;i<sel.options.length;i++){
+      const iv = parseInt(sel.options[i].value,10);
+      if (iv > v){ sel.insertBefore(opt, sel.options[i]); return; }
+    }
+    sel.appendChild(opt);
+  }
+  function removeSegOption(sel, v){
+    const sv = String(v);
+    for (const o of [...sel.options]){
+      if (o.value === sv){ sel.removeChild(o); return; }
+    }
+  }
+  function updateSegSelects(){
+    if (!EL.midSegs || !EL.highSegs) return;
+    if (P.enableExtreme){
+      for (const v of SEG_EXTREME){
+        ensureSegOption(EL.midSegs, v);
+        ensureSegOption(EL.highSegs, v);
+      }
+    } else {
+      for (const v of SEG_EXTREME){
+        removeSegOption(EL.midSegs, v);
+        removeSegOption(EL.highSegs, v);
+      }
+    }
+  }
+
+
+  const geomCache = new Map(); // seg -> { geom, refs, lastUsed, promise }
+  const geomPending = { count: 0 };
+  let geomReqId = 1;
+  const geomReq = new Map(); // id -> { segs, resolve, reject }
+
+  const sphereWorkerCode = `
+    self.onmessage = (e)=> {
+      const { id, segs } = e.data;
+      const w = Math.max(8, segs|0);
+      const h = Math.max(8, (w/2)|0);
+      const vertCount = (w+1)*(h+1);
+
+      const positions = new Float32Array(vertCount*3);
+      const normals   = new Float32Array(vertCount*3);
+      const uvs       = new Float32Array(vertCount*2);
+
+      let p=0, n=0, t=0;
+      for (let y=0; y<=h; y++){
+        const v = y / h;
+        const phi = v * Math.PI;
+        const sinPhi = Math.sin(phi);
+        const cosPhi = Math.cos(phi);
+        for (let x=0; x<=w; x++){
+          const u = x / w;
+          const theta = u * Math.PI * 2.0;
+          const sinTheta = Math.sin(theta);
+          const cosTheta = Math.cos(theta);
+
+          const px = cosTheta * sinPhi;
+          const py = cosPhi;
+          const pz = sinTheta * sinPhi;
+
+          positions[p++] = px; positions[p++] = py; positions[p++] = pz;
+          normals[n++]   = px; normals[n++]   = py; normals[n++]   = pz;
+          uvs[t++] = u; uvs[t++] = 1.0 - v;
+        }
+      }
+
+      // Upper bound allocation (slightly over); we'll slice with indexCount on the main thread.
+      const indices = new Uint32Array(w*h*6);
+      let ii = 0;
+      for (let y=0; y<h; y++){
+        for (let x=0; x<w; x++){
+          const a = y*(w+1) + x;
+          const b = a + 1;
+          const c = (y+1)*(w+1) + x;
+          const d = c + 1;
+
+          // Skip the truly-degenerate pole triangles
+          if (y !== 0){
+            indices[ii++] = a;
+            indices[ii++] = b;
+            indices[ii++] = c;
+          }
+          if (y !== h-1){
+            indices[ii++] = b;
+            indices[ii++] = d;
+            indices[ii++] = c;
+          }
+        }
+      }
+
+      self.postMessage(
+        { id, segs: w, h, positions: positions.buffer, normals: normals.buffer, uvs: uvs.buffer, indices: indices.buffer, indexCount: ii },
+        [positions.buffer, normals.buffer, uvs.buffer, indices.buffer]
+      );
+    };
+  `;
+  const sphereWorker = new Worker(URL.createObjectURL(new Blob([sphereWorkerCode], { type: 'application/javascript' })));
+
+  sphereWorker.onmessage = (e)=>{
+    const { id, segs, positions, normals, uvs, indices, indexCount } = e.data;
+    const req = geomReq.get(id);
+    if (!req) return;
+    geomReq.delete(id);
+    geomPending.count = Math.max(0, geomPending.count - 1);
+
+    // Build BufferGeometry
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
+    g.setAttribute('normal',   new THREE.BufferAttribute(new Float32Array(normals), 3));
+    g.setAttribute('uv',       new THREE.BufferAttribute(new Float32Array(uvs), 2));
+
+    const idx = new Uint32Array(indices, 0, indexCount);
+    g.setIndex(new THREE.BufferAttribute(idx, 1));
+    g.computeBoundingSphere();
+
+    const entry = geomCache.get(segs);
+    if (entry){
+      entry.geom = g;
+      entry.lastUsed = performance.now();
+      entry.promise = null;
+    } else {
+      geomCache.set(segs, { geom: g, refs: 0, lastUsed: performance.now(), promise: null });
+    }
+
+    req.resolve(g);
+  };
+
+  function requestSphereGeom(segs){
+    let s = segs|0;
+    if (s >= 4096 && !confirmHugeSphere(s)) s = 3072;
+    const existing = geomCache.get(s);
+    if (existing && existing.geom){
+      existing.lastUsed = performance.now();
+      return Promise.resolve(existing.geom);
+    }
+    if (existing && existing.promise) return existing.promise;
+
+    geomPending.count++;
+    const id = geomReqId++;
+    const promise = new Promise((resolve, reject)=>{
+      geomReq.set(id, { segs:s, resolve, reject });
+    });
+    geomCache.set(s, { geom: null, refs: 0, lastUsed: performance.now(), promise });
+    sphereWorker.postMessage({ id, segs: s });
+    return promise;
+  }
+
+  function acquireGeom(segs){
+    const e = geomCache.get(segs);
+    if (!e || !e.geom) return null;
+    e.refs = (e.refs||0) + 1;
+    e.lastUsed = performance.now();
+    return e.geom;
+  }
+  function releaseGeom(segs){
+    const e = geomCache.get(segs);
+    if (!e) return;
+    e.refs = Math.max(0, (e.refs||0) - 1);
+    e.lastUsed = performance.now();
+  }
+  function trimGeomCache(){
+    const MAX = 8; // keep this small; big LODs are expensive in VRAM
+    if (geomCache.size <= MAX) return;
+
+    const candidates = [];
+    for (const [seg, e] of geomCache.entries()){
+      if (e && e.geom && (e.refs||0) === 0 && !e.promise){
+        candidates.push([seg, e]);
+      }
+    }
+    candidates.sort((a,b)=> (a[1].lastUsed||0) - (b[1].lastUsed||0));
+
+    while (geomCache.size > MAX && candidates.length){
+      const [seg, e] = candidates.shift();
+      try{ e.geom.dispose(); } catch {}
+      geomCache.delete(seg);
+    }
+  }
+
+  function chooseSeg(required, maxAllowed){
+    const maxA = Math.max(SEG_OPTS[0], maxAllowed|0);
+    let best = SEG_OPTS[0];
+    for (const s of SEG_OPTS){
+      if (s > maxA) break;
+      best = s;
+      if (s >= required) break;
+    }
+    // Clamp to maxAllowed (which is itself always in the dropdown list)
+    if (best > maxA) best = maxA;
+    return best;
+  }
+
+  function setMeshDesiredSeg(mesh, seg){
+    if (!mesh) return;
+    const desired = seg|0;
+
+    // Already on it
+    if (mesh.userData.desiredSeg === desired && mesh.userData.seg === desired) return;
+
+    // If we already have an in-flight request for this same seg, don't attach more callbacks.
+    if ((mesh.userData.waitingForSeg|0) === desired && mesh.userData.waitingPromise){
+      mesh.userData.desiredSeg = desired;
+      return;
+    }
+
+    mesh.userData.desiredSeg = desired;
+
+    // If already ready, swap immediately
+    const g0 = acquireGeom(desired);
+    if (g0){
+      const prev = mesh.userData.seg|0;
+      if (prev && prev !== desired) releaseGeom(prev);
+      if (!prev && mesh.geometry){ try{ mesh.geometry.dispose(); } catch {} }
+
+      mesh.geometry = g0;
+      mesh.userData.seg = desired;
+      mesh.userData.waitingForSeg = 0;
+      mesh.userData.waitingPromise = null;
+      trimGeomCache();
+      return;
+    }
+
+    // Otherwise request + swap when ready (if still desired)
+    const p = requestSphereGeom(desired);
+    mesh.userData.waitingForSeg = desired;
+    mesh.userData.waitingPromise = p;
+
+    p.then((g)=>{
+      if (!mesh) return;
+
+      // Clear waiting marker (whether or not we apply)
+      if ((mesh.userData.waitingForSeg|0) === desired){
+        mesh.userData.waitingForSeg = 0;
+        mesh.userData.waitingPromise = null;
+      }
+
+      if ((mesh.userData.desiredSeg|0) !== desired) return;
+
+      const prev = mesh.userData.seg|0;
+      if (prev && prev !== desired) releaseGeom(prev);
+      if (!prev && mesh.geometry){ try{ mesh.geometry.dispose(); } catch {} }
+
+      const held = acquireGeom(desired) || g; // acquireGeom increments refs
+      mesh.geometry = held;
+      mesh.userData.seg = desired;
+      trimGeomCache();
+    }).catch(()=>{
+      if (!mesh) return;
+      if ((mesh.userData.waitingForSeg|0) === desired){
+        mesh.userData.waitingForSeg = 0;
+        mesh.userData.waitingPromise = null;
+      }
+    });
+  }
+
+
+  // Shared uniforms for terrain/lighting across all surface materials.
+  const UCommon = {
+    uNoiseScale: { value: P.noiseScale },
+    uHeightAmp:  { value: P.heightAmp },
+    uSeaLevel:   { value: P.seaLevel },
+    uSeed:       { value: seedV.clone() },
+    uTime:       { value: 0 },
+
+    uLightDir:   { value: new THREE.Vector3(1,1,0).normalize() },
+    uCameraPos:  { value: camera.position.clone() },
+    uTemperature:{ value: P.temperature },
+    uExposure:   { value: P.exposure },
+    uHaze:       { value: P.haze },
+
+    // clouds (shadow)
+    uCloudScale: { value: P.cloudScale },
+    uCloudSpeed: { value: P.cloudSpeed },
+    uCloudCoverage: { value: P.cloudCoverage },
+    uCloudSoftness: { value: P.cloudSoftness },
+    uCloudShadowStrength: { value: P.cloudOn ? P.cloudShadowStrength : 0.0 },
+  };
+
+  // Marker for “camera anchor” (constant pixel size)
+  const anchorMarker = new THREE.Mesh(
+    new THREE.RingGeometry(0.035, 0.045, 64),
+    new THREE.MeshBasicMaterial({ color: 0xfff2a8, transparent:true, opacity:0.9, side: THREE.DoubleSide, depthTest:false })
+  );
+  anchorMarker.visible = false;
+  scene.add(anchorMarker);
+
+  function worldUnitsPerPixelAt(pos){
+    const vFOV = THREE.MathUtils.degToRad(camera.fov);
+    const dist = camera.position.distanceTo(pos);
+    return (2 * dist * Math.tan(vFOV/2)) / renderer.domElement.clientHeight;
+  }
+  function setConstantPixelSize(obj, pos, desiredPx, baseDiameter){
+    const wupp = worldUnitsPerPixelAt(pos);
+    const s = (desiredPx * wupp) / baseDiameter;
+    obj.scale.setScalar(s);
+  }
+
+  function makeSky(){
+    if (skyMesh) scene.remove(skyMesh);
+    const g = new THREE.SphereGeometry(18, 48, 32);
+    const m = new THREE.ShaderMaterial({
+      vertexShader: document.getElementById('skyVS').textContent,
+      fragmentShader: document.getElementById('skyFS').textContent,
+      uniforms: {
+        uSunDir: { value: new THREE.Vector3(1,1,0).normalize() },
+        uUpDir:  { value: new THREE.Vector3(0,1,0) },
+        uSkyExposure: { value: 1.0 }
+      },
+      side: THREE.BackSide,
+      depthWrite: false,
+      depthTest: false
+    });
+    skyMesh = new THREE.Mesh(g, m);
+    skyMesh.frustumCulled = false;
+    scene.add(skyMesh);
+  }
+
+  // ---------- Scatter meshes (instanced) ----------
+  let rocksMesh = null;
+  let plantsMesh = null;
+
+  function makeScatterMeshes(){
+    // Rocks
+    const rockGeom = new THREE.IcosahedronGeometry(0.004, 0);
+    const rockMat = new THREE.MeshStandardMaterial({
+      roughness: 0.95,
+      metalness: 0.0,
+      vertexColors: true,
+      color: 0xffffff
+    });
+    rocksMesh = new THREE.InstancedMesh(rockGeom, rockMat, 2200);
+    rocksMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    rocksMesh.renderOrder = 3;
+    scatterGroup.add(rocksMesh);
+
+    // Plants (simple “billboard” cones)
+    const plantGeom = new THREE.ConeGeometry(0.003, 0.018, 5, 1);
+    const plantMat = new THREE.MeshStandardMaterial({
+      roughness: 0.92,
+      metalness: 0.0,
+      vertexColors: true,
+      color: 0xffffff
+    });
+    plantsMesh = new THREE.InstancedMesh(plantGeom, plantMat, 2600);
+    plantsMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    plantsMesh.renderOrder = 3;
+    scatterGroup.add(plantsMesh);
+  }
+  makeScatterMeshes();
+
+  // Scatter state + rebuild
+  const scatterState = {
+    lastAnchor: new THREE.Vector3(0,1,0),
+    dirty: true
+  };
+
+  // temp axis used for instance orientation
+  const _yAxis = new THREE.Vector3(0,1,0);
+
+  function hash01(x){
+    return (Math.sin(x)*43758.5453123) % 1;
+  }
+  function rngFromDir(dir){
+    // deterministic-ish RNG seed from a direction
+    const s = dir.x*127.1 + dir.y*311.7 + dir.z*74.7;
+    let v = Math.abs(Math.sin(s)*43758.5453);
+    return ()=>{ v = (v*16807.0) % 2147483647.0; return (v/2147483647.0); };
+  }
+
+  function rebuildScatter(){
+    if (!P.scatterOn) { scatterGroup.visible = false; return; }
+    if (!rocksMesh || !plantsMesh) return;
+
+    const anchor = photo.anchorDirLocal.clone().normalize();
+    const { east, north } = makeLocalBasis(anchor);
+
+    const rng = rngFromDir(anchor);
+    const m = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const s = new THREE.Vector3();
+    const pos = new THREE.Vector3();
+    const c = new THREE.Color();
+
+    const rCountMax = rocksMesh.count;
+    const pCountMax = plantsMesh.count;
+
+    let rCount = 0;
+    let pCount = 0;
+
+    // place instances in a disc around anchor (planet-local)
+    const patch = P.scatterRad;
+    const area = Math.PI*patch*patch;
+    const density = P.scatterDen;
+
+    const rockTarget = Math.floor(900 * density);
+    const plantTarget = Math.floor(1400 * density);
+
+    function sampleDirInDisc(){
+      // uniform disc sampling (in tangent plane), then project to sphere dir
+      const a = rng()*Math.PI*2;
+      const rr = patch * Math.sqrt(rng());
+      const dx = Math.cos(a)*rr;
+      const dy = Math.sin(a)*rr;
+      const d = anchor.clone()
+        .addScaledVector(east, dx)
+        .addScaledVector(north, dy)
+        .normalize();
+      return d;
+    }
+
+    for (let i=0;i<rockTarget && rCount<rCountMax;i++){
+      const d = sampleDirInDisc();
+      // Only above sea
+      const h = heightAtDirLocal(d);
+      if (h <= 0.0002) continue;
+
+      const r = 1.0 + h;
+      pos.copy(d).multiplyScalar(r + 0.0006);
+
+      // orientation: align up to normal, random yaw
+      q.setFromUnitVectors(_yAxis, d);
+      q.multiply(new THREE.Quaternion().setFromAxisAngle(d, (rng()*2-1)*Math.PI));
+
+      const scale = 0.55 + 1.65*rng();
+      s.setScalar(scale);
+
+      m.compose(pos, q, s);
+      rocksMesh.setMatrixAt(rCount, m);
+
+      const g = 0.35 + 0.35*rng();
+      c.setRGB(g*0.95, g*0.92, g*0.88);
+      rocksMesh.setColorAt(rCount, c);
+
+      rCount++;
+    }
+
+    for (let i=0;i<plantTarget && pCount<pCountMax;i++){
+      const d = sampleDirInDisc();
+      const h = heightAtDirLocal(d);
+      // plants prefer low-mid elevation
+      if (h <= 0.001 || h >= 0.055) continue;
+
+      const r = 1.0 + h;
+      pos.copy(d).multiplyScalar(r + 0.0002);
+
+      q.setFromUnitVectors(_yAxis, d);
+      q.multiply(new THREE.Quaternion().setFromAxisAngle(d, (rng()*2-1)*Math.PI));
+
+      const scale = 0.55 + 1.95*rng();
+      s.set(scale, scale*(0.9+0.3*rng()), scale);
+
+      m.compose(pos, q, s);
+      plantsMesh.setMatrixAt(pCount, m);
+
+      // green shifts with temperature
+      const temp = P.temperature;
+      const g = 0.22 + 0.45*rng();
+      c.setRGB(0.08 + 0.10*temp, g*(0.75+0.35*temp), 0.08 + 0.10*(1-temp));
+      plantsMesh.setColorAt(pCount, c);
+
+      pCount++;
+    }
+
+    rocksMesh.count = rCount;
+    plantsMesh.count = pCount;
+    rocksMesh.instanceMatrix.needsUpdate = true;
+    plantsMesh.instanceMatrix.needsUpdate = true;
+    if (rocksMesh.instanceColor) rocksMesh.instanceColor.needsUpdate = true;
+    if (plantsMesh.instanceColor) plantsMesh.instanceColor.needsUpdate = true;
+
+    scatterState.lastAnchor.copy(anchor);
+    scatterState.dirty = false;
+
+    scatterGroup.visible = true;
+  }
+
+  // ---------- Planet build ----------
+  function disposeMesh(m){
+    if (!m) return;
+
+    // Release cached sphere LOD geometries safely (they may be shared by multiple meshes).
+    const seg = (m.userData && m.userData.seg) ? (m.userData.seg|0) : 0;
+    if (seg && geomCache.has(seg)){
+      releaseGeom(seg);
+    } else if (m.geometry){
+      try{ m.geometry.dispose(); } catch {}
+    }
+
+    if (m.material){
+      try{ m.material.dispose(); } catch {}
+    }
+  }
+
+  function makePlanet(){
+    // Remove old
+    if (surfaceFar)  { planet.remove(surfaceFar);  disposeMesh(surfaceFar);  surfaceFar = null; }
+    if (surfaceMid)  { planet.remove(surfaceMid);  disposeMesh(surfaceMid);  surfaceMid = null; }
+    if (surfaceHigh) { planet.remove(surfaceHigh); disposeMesh(surfaceHigh); surfaceHigh = null; }
+    if (cloudsMesh)  { planet.remove(cloudsMesh);  disposeMesh(cloudsMesh); cloudsMesh = null; }
+    if (atmoMesh)    { planet.remove(atmoMesh);    disposeMesh(atmoMesh);   atmoMesh = null; }
+
+    // Materials (share UCommon by reference)
+    const farMat = new THREE.ShaderMaterial({
+      vertexShader: BASE_PLANET_VS,
+      fragmentShader: BASE_PLANET_FS,
+      uniforms: { ...UCommon },
+      extensions: { derivatives: true },
+    });
+    farMat.wireframe = !!P.wire;
+
+    const midMat = new THREE.ShaderMaterial({
+      vertexShader: BASE_PLANET_VS,
+      fragmentShader: BASE_PLANET_FS,
+      uniforms: { ...UCommon },
+      extensions: { derivatives: true },
+    });
+    midMat.wireframe = !!P.wire;
+
+    const highMat = new THREE.ShaderMaterial({
+      vertexShader: BASE_PLANET_VS,
+      fragmentShader: BASE_PLANET_FS,
+      uniforms: { ...UCommon },
+      extensions: { derivatives: true },
+    });
+    highMat.wireframe = !!P.wire;
+
+    // Geometry (built asynchronously in a Worker)
+    // Start with small placeholders, then swap in the requested segment counts when ready.
+    const gFar0  = new THREE.SphereGeometry(1.0, 128, 64);
+    const gMid0  = new THREE.SphereGeometry(1.0, 128, 64);
+    const gHigh0 = new THREE.SphereGeometry(1.0, 128, 64);
+
+    surfaceFar = new THREE.Mesh(gFar0, farMat);
+    surfaceFar.renderOrder = 0;
+    surfaceFar.userData.seg = 0;
+    surfaceFar.userData.desiredSeg = 0;
+    planet.add(surfaceFar);
+
+    surfaceMid = new THREE.Mesh(gMid0, midMat);
+    surfaceMid.renderOrder = 0;
+    surfaceMid.visible = false;
+    surfaceMid.userData.seg = 0;
+    surfaceMid.userData.desiredSeg = 0;
+    planet.add(surfaceMid);
+
+    surfaceHigh = new THREE.Mesh(gHigh0, highMat);
+    surfaceHigh.renderOrder = 0;
+    surfaceHigh.visible = false;
+    surfaceHigh.userData.seg = 0;
+    surfaceHigh.userData.desiredSeg = 0;
+    planet.add(surfaceHigh);
+
+    // LOD geometries are requested/swapped in the animation loop based on zoom.
+
+    // Clouds
+    const cloudGeom = new THREE.SphereGeometry(1.075, 128, 96);
+    const cloudMat = new THREE.ShaderMaterial({
+      vertexShader: document.getElementById('cloudVS').textContent,
+      fragmentShader: document.getElementById('cloudFS').textContent,
+      uniforms: {
+        uLightDir: { value: UCommon.uLightDir.value },
+        uCameraPos:{ value: camera.position.clone() },
+
+        uSeed:     { value: seedV.clone() },
+        uTime:     { value: 0 },
+
+        uCloudColor: { value: P.cloudColor.clone() },
+        uCloudOpacity: { value: P.cloudOpacity },
+        uCloudScale: { value: P.cloudScale },
+        uCloudSpeed: { value: P.cloudSpeed },
+        uCloudCoverage: { value: P.cloudCoverage },
+        uCloudSoftness: { value: P.cloudSoftness },
+      },
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      blending: THREE.NormalBlending
+    });
+    cloudsMesh = new THREE.Mesh(cloudGeom, cloudMat);
+    cloudsMesh.renderOrder = 1;
+    cloudsMesh.visible = !!P.cloudOn;
+    planet.add(cloudsMesh);
+
+    // Atmosphere
+    const atmoGeom = new THREE.SphereGeometry(1.03, 96, 64);
+    const atmoMat = new THREE.ShaderMaterial({
+      vertexShader: document.getElementById('atmoVS').textContent,
+      fragmentShader: document.getElementById('atmoFS').textContent,
+      uniforms: {
+        uLightDir: { value: UCommon.uLightDir.value },
+        uCameraPos:{ value: camera.position.clone() },
+        uAtmoColor:{ value: P.atmoColor.clone() },
+        uAtmoDensity:{ value: P.atmoD },
+        uAtmoSun:  { value: 0.35 },
+      },
+      transparent: true,
+      depthWrite: false,
+      side: THREE.BackSide,
+      blending: THREE.AdditiveBlending
+    });
+    atmoMesh = new THREE.Mesh(atmoGeom, atmoMat);
+    atmoMesh.renderOrder = 2;
+    planet.add(atmoMesh);
+
+    // Keep scatterGroup at the end (so its local transforms stay valid)
+    planet.add(scatterGroup);
+
+    scatterState.dirty = true;
+  }
+
+  makeSky();
+  makePlanet();
+
+  // ---------- Sun direction helper ----------
+  function updateSunDir(){
+    const az = THREE.MathUtils.degToRad(P.sunAz);
+    const el = THREE.MathUtils.degToRad(P.sunEl);
+    const x = Math.cos(el) * Math.cos(az);
+    const y = Math.sin(el);
+    const z = Math.cos(el) * Math.sin(az);
+    const sun = new THREE.Vector3(x,y,z).normalize();
+
+    UCommon.uLightDir.value.copy(sun);
+
+    if (atmoMesh) atmoMesh.material.uniforms.uLightDir.value.copy(sun);
+    if (cloudsMesh) cloudsMesh.material.uniforms.uLightDir.value.copy(sun);
+    if (skyMesh) skyMesh.material.uniforms.uSunDir.value.copy(sun);
+
+    // For scatter lighting
+    sunLight.position.copy(sun).multiplyScalar(5);
+    sunLight.target.position.set(0,0,0);
+  }
+  updateSunDir();
+
+  // ---------- LOD ----------
+  function setActiveLOD(next){
+    activeLOD = next;
+    if (surfaceFar)  surfaceFar.visible  = (activeLOD === 0);
+    if (surfaceMid)  surfaceMid.visible  = (activeLOD === 1);
+    if (surfaceHigh) surfaceHigh.visible = (activeLOD === 2);
+  }
+  setActiveLOD(0);
+
+  function pickLOD(screenFrac){
+    // Manual override
+    if (P.lodMode !== 'auto'){
+      if (P.lodMode === 'far') return 0;
+      if (P.lodMode === 'mid') return 1;
+      if (P.lodMode === 'high') return 2;
+      return 0;
+    }
+
+    // Hysteresis to prevent flicker
+    const H = 0.03;
+    if (activeLOD === 0){
+      if (screenFrac > P.lod01 + H) return 1;
+      return 0;
+    }
+    if (activeLOD === 1){
+      if (screenFrac < P.lod01 - H) return 0;
+      if (screenFrac > P.lod12 + H) return 2;
+      return 1;
+    }
+    // activeLOD === 2
+    if (screenFrac < P.lod12 - H) return 1;
+    return 2;
+  }
+
+  function getActiveSurface(){
+    if (activeLOD === 0) return surfaceFar;
+    if (activeLOD === 1) return surfaceMid;
+    return surfaceHigh;
+  }
+
+  // ---------- Photo rig ----------
+  const Mode = { ORBIT: 'orbit', PHOTO: 'photo' };
+  let mode = Mode.ORBIT;
+
+  const photo = {
+    // Stored in planet-local space so it co-rotates with the planet.
+    anchorDirLocal: new THREE.Vector3(0.12, 0.18, 0.975).normalize(),
+    yaw: 0.0,
+    pitch: -0.10,
+    roll: 0.0,
+
+    dragging: false,
+    lastX: 0,
+    lastY: 0,
+
+    moveSpeed: 0.35,   // radians/sec at base
+    altMin: 0.002,
+    altMax: 0.120,
+  };
+
+  function makeLocalBasis(upLocal){
+    const ref = (Math.abs(upLocal.y) < 0.95) ? new THREE.Vector3(0,1,0) : new THREE.Vector3(1,0,0);
+    const east = new THREE.Vector3().crossVectors(ref, upLocal).normalize();
+    const north = new THREE.Vector3().crossVectors(upLocal, east).normalize();
+    return { east, north };
+  }
+
+  function getAnchorWorldDir(){
+    return photo.anchorDirLocal.clone().applyQuaternion(planet.quaternion).normalize();
+  }
+
+  function updateCameraPhoto(){
+    const upLocal = photo.anchorDirLocal.clone().normalize();
+    const { east: eastLocal, north: northLocal } = makeLocalBasis(upLocal);
+
+    // Convert basis to world (planet rotation)
+    const upW = upLocal.clone().applyQuaternion(planet.quaternion).normalize();
+    const eastW = eastLocal.clone().applyQuaternion(planet.quaternion).normalize();
+    const northW = northLocal.clone().applyQuaternion(planet.quaternion).normalize();
+
+    // Apply yaw/pitch relative to local tangent frame
+    const yaw = photo.yaw;
+    const pitch = THREE.MathUtils.clamp(photo.pitch, -1.35, 1.10);
+    const roll = THREE.MathUtils.clamp(photo.roll, -Math.PI, Math.PI);
+
+    let fwd = northW.clone().multiplyScalar(Math.cos(yaw)).add(eastW.clone().multiplyScalar(Math.sin(yaw))).normalize();
+
+    // Pitch around camera-right
+    let right = new THREE.Vector3().crossVectors(fwd, upW).normalize();
+    fwd = fwd.clone().applyAxisAngle(right, pitch).normalize();
+
+    // Recompute right/up from forward
+    right = new THREE.Vector3().crossVectors(fwd, upW).normalize();
+    let upCam = new THREE.Vector3().crossVectors(right, fwd).normalize();
+
+    // Roll about forward
+    right.applyAxisAngle(fwd, roll);
+    upCam.applyAxisAngle(fwd, roll);
+
+    // Ground-follow altitude
+    const groundH = heightAtDirLocal(upLocal);
+    const r = 1.0 + Math.max(0.0, groundH);
+    const posW = upW.clone().multiplyScalar(r + P.alt);
+
+    camera.position.copy(posW);
+
+    // Build camera orientation matrix: X=right, Y=up, Z=-forward
+    const m = new THREE.Matrix4().makeBasis(right, upCam, fwd.clone().negate());
+    camera.quaternion.setFromRotationMatrix(m);
+
+    // Drive sky “up”
+    if (skyMesh) skyMesh.material.uniforms.uUpDir.value.copy(upCam);
+
+    // Anchor marker
+    anchorMarker.visible = true;
+    const markerPos = upW.clone().multiplyScalar(r + 0.0009);
+    anchorMarker.position.copy(markerPos);
+    anchorMarker.lookAt(camera.position);
+    setConstantPixelSize(anchorMarker, markerPos, 26, 0.08);
+
+    // Scatter rebuild threshold
+    if (P.scatterOn){
+      const dot = scatterState.lastAnchor.dot(photo.anchorDirLocal);
+      const needs = scatterState.dirty || (dot < Math.cos(Math.max(0.004, P.scatterRad*0.18)));
+      if (needs){
+        scatterState.dirty = true;
+        rebuildScatter();
+      }
+    }
+  }
+
+  // ---------- Mode switching ----------
+  function setMode(newMode){
+    mode = newMode;
+    const isPhoto = (mode === Mode.PHOTO);
+
+    orbit.enabled = !isPhoto;
+
+    if (isPhoto){
+      camera.near = 0.001;
+      camera.far = 80;
+      camera.fov = P.fov;
+      camera.updateProjectionMatrix();
+      orbit.target.set(0,0,0);
+
+      updateCameraPhoto();
+      document.getElementById('btnMode').textContent = 'Exit Photo Mode (P)';
+    } else {
+      anchorMarker.visible = false;
+      scatterGroup.visible = false;
+
+      camera.near = 0.01;
+      camera.far = 80;
+      camera.fov = P.fov;
+      camera.updateProjectionMatrix();
+
+      const d = camera.position.length();
+      if (d < 1.2) camera.position.set(0, 0.15, 2.8);
+
+      document.getElementById('btnMode').textContent = 'Enter Photo Mode (P)';
+    }
+  }
+
+  // ---------- Input (photo mode) ----------
+  renderer.domElement.addEventListener('pointerdown', (e)=>{
+    if (mode !== Mode.PHOTO) return;
+    if (e.button !== 0) return;
+    photo.dragging = true;
+    photo.lastX = e.clientX;
+    photo.lastY = e.clientY;
+    renderer.domElement.setPointerCapture(e.pointerId);
+  });
+  renderer.domElement.addEventListener('pointermove', (e)=>{
+    if (mode !== Mode.PHOTO) return;
+    if (!photo.dragging) return;
+    const dx = e.clientX - photo.lastX;
+    const dy = e.clientY - photo.lastY;
+    photo.lastX = e.clientX;
+    photo.lastY = e.clientY;
+
+    photo.yaw   -= dx * 0.0048;
+    photo.pitch -= dy * 0.0046;
+  });
+  renderer.domElement.addEventListener('pointerup', ()=>{ photo.dragging = false; });
+  renderer.domElement.addEventListener('pointercancel', ()=>{ photo.dragging = false; });
+
+  renderer.domElement.addEventListener('wheel', (e)=>{
+    if (mode !== Mode.PHOTO) return;
+    e.preventDefault();
+    const s = (e.deltaY > 0) ? 1.10 : 0.90;
+    P.alt = THREE.MathUtils.clamp(P.alt * s, photo.altMin, photo.altMax);
+    syncUI();
+  }, { passive:false });
+
+  // Double-click: set camera location to cursor (planet-local)
+  const ray = new THREE.Raycaster();
+  const mouse = new THREE.Vector2();
+  renderer.domElement.addEventListener('dblclick', (e)=>{
+    if (mode !== Mode.PHOTO) return;
+
+    const surf = getActiveSurface();
+    if (!surf) return;
+
+    const rect = renderer.domElement.getBoundingClientRect();
+    mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+    ray.setFromCamera(mouse, camera);
+    const hits = ray.intersectObject(surf, false);
+    if (!hits.length) return;
+
+    const pLocal = planet.worldToLocal(hits[0].point.clone()).normalize();
+    photo.anchorDirLocal.copy(pLocal);
+
+    photo.pitch = -0.10;
+    scatterState.dirty = true;
+    updateCameraPhoto();
+  });
+
+  // Key movement on the sphere
+  const keys = new Set();
+  window.addEventListener('keydown', (e)=>{
+    if (e.code === 'KeyP'){
+      setMode(mode === Mode.PHOTO ? Mode.ORBIT : Mode.PHOTO);
+      return;
+    }
+    if (e.code === 'Space'){
+      thirds.style.display = (thirds.style.display === 'none' ? 'block' : 'none');
+      return;
+    }
+    if (e.code === 'KeyH'){
+      toggleHudHidden();
+      return;
+    }
+    keys.add(e.code);
+  });
+  window.addEventListener('keyup', (e)=>keys.delete(e.code));
+
+  function moveAnchorOnSphere(dt){
+    const up = photo.anchorDirLocal.clone().normalize();
+    const { east, north } = makeLocalBasis(up);
+
+    // Movement direction uses yaw
+    const fwd = north.clone().multiplyScalar(Math.cos(photo.yaw)).add(east.clone().multiplyScalar(Math.sin(photo.yaw))).normalize();
+    const right = east.clone().multiplyScalar(Math.cos(photo.yaw)).add(north.clone().multiplyScalar(-Math.sin(photo.yaw))).normalize();
+
+    let f = 0, r = 0;
+    if (keys.has('KeyW')) f += 1;
+    if (keys.has('KeyS')) f -= 1;
+    if (keys.has('KeyD')) r += 1;
+    if (keys.has('KeyA')) r -= 1;
+
+    const speed = photo.moveSpeed * (keys.has('ShiftLeft') || keys.has('ShiftRight') ? 2.4 : 1.0);
+    const dAng = speed * dt;
+
+    if (f !== 0){
+      const dir = (f > 0) ? fwd : fwd.clone().multiplyScalar(-1);
+      const axis = new THREE.Vector3().crossVectors(dir, up).normalize();
+      photo.anchorDirLocal.applyAxisAngle(axis, dAng).normalize();
+    }
+    if (r !== 0){
+      const dir = (r > 0) ? right : right.clone().multiplyScalar(-1);
+      const axis = new THREE.Vector3().crossVectors(dir, up).normalize();
+      photo.anchorDirLocal.applyAxisAngle(axis, dAng).normalize();
+    }
+
+    if (keys.has('KeyQ')) photo.roll += 0.9 * dt;
+    if (keys.has('KeyE')) photo.roll -= 0.9 * dt;
+  }
+
+  // ---------- UI wiring ----------
+  const EL = {
+    lodMode: document.getElementById('lodMode'),
+    presetSel: document.getElementById('presetSel'),
+    lod01: document.getElementById('lod01'),
+    lod12: document.getElementById('lod12'),    farSegs: document.getElementById('farSegs'),
+    midSegs: document.getElementById('midSegs'),
+    highSegs: document.getElementById('highSegs'),
+    wire: document.getElementById('wire'),
+    extreme: document.getElementById('extreme'),
+
+    autoSegs: document.getElementById('autoSegs'),
+    autoQuality: document.getElementById('autoQuality'),
+    targetFPS: document.getElementById('targetFPS'),
+    resScale: document.getElementById('resScale'),
+    prCap: document.getElementById('prCap'),
+    lodPx: document.getElementById('lodPx'),
+
+    height: document.getElementById('height'),
+    noise:  document.getElementById('noise'),
+    sea:    document.getElementById('sea'),
+    temp:   document.getElementById('temp'),
+
+    sunAz:  document.getElementById('sunAz'),
+    sunEl:  document.getElementById('sunEl'),
+    atmoD:  document.getElementById('atmoD'),
+    haze:   document.getElementById('haze'),
+    exp:    document.getElementById('exp'),
+
+    cloudOn:    document.getElementById('cloudOn'),
+    cloudOp:    document.getElementById('cloudOp'),
+    cloudScale: document.getElementById('cloudScale'),
+    cloudCov:   document.getElementById('cloudCov'),
+    cloudSoft:  document.getElementById('cloudSoft'),
+    cloudSpeed: document.getElementById('cloudSpeed'),
+    cloudSh:    document.getElementById('cloudSh'),
+
+    scatterOn:  document.getElementById('scatterOn'),
+    scatterDen: document.getElementById('scatterDen'),
+    scatterRad: document.getElementById('scatterRad'),
+
+    fov: document.getElementById('fov'),
+    alt: document.getElementById('alt'),
+  };
+
+  function setVal(id, txt){
+    const el = document.getElementById('v_' + id);
+    if (el) el.textContent = txt;
+  }
+
+  function syncUI(){
+    // LOD
+    EL.lodMode.value = P.lodMode;
+    EL.lod01.value = String(P.lod01);
+    EL.lod12.value = String(P.lod12);    EL.farSegs.value = String(P.farSegs);
+    EL.midSegs.value = String(P.midSegs);
+    EL.highSegs.value = String(P.highSegs);
+    EL.wire.checked = !!P.wire;
+    EL.extreme.checked = !!P.enableExtreme;
+
+    setVal('lodMode', P.lodMode);
+    setVal('lod01', P.lod01.toFixed(2));
+    setVal('lod12', P.lod12.toFixed(2));    setVal('farSegs', String(P.farSegs));
+    setVal('midSegs', String(P.midSegs));
+    setVal('highSegs', String(P.highSegs));
+    setVal('extreme', P.enableExtreme ? 'on' : 'off');
+    setVal('wire', P.wire ? 'on' : 'off');
+
+    // Auto segs + quality
+    EL.autoSegs.checked = !!P.autoSegs;
+    EL.autoQuality.checked = !!P.autoQuality;
+    EL.targetFPS.value = String(P.targetFPS);
+    EL.resScale.value = String(P.resScale);
+    if (EL.prCap) EL.prCap.value = String(P.pixRatioCap);
+    EL.lodPx.value = String(P.lodPx);
+
+    setVal('autoSegs', P.autoSegs ? 'on' : 'off');
+    setVal('autoQuality', P.autoQuality ? 'on' : 'off');
+    setVal('targetFPS', String(Math.round(P.targetFPS)));
+    setVal('resScale', fmt2(P.resScale));
+    setVal('prCap', fmt2(P.pixRatioCap));
+    setVal('lodPx', fmt1(P.lodPx));
+
+
+    // Terrain
+    EL.height.value = String(P.heightAmp);
+    EL.noise.value  = String(P.noiseScale);
+    EL.sea.value    = String(P.seaLevel);
+    EL.temp.value   = String(P.temperature);
+    setVal('height', P.heightAmp.toFixed(3));
+    setVal('noise',  P.noiseScale.toFixed(2));
+    setVal('sea',    P.seaLevel.toFixed(3));
+    setVal('temp',   P.temperature.toFixed(2));
+
+    // Light + atmo
+    EL.sunAz.value = String(P.sunAz);
+    EL.sunEl.value = String(P.sunEl);
+    EL.atmoD.value = String(P.atmoD);
+    EL.haze.value  = String(P.haze);
+    EL.exp.value   = String(P.exposure);
+    setVal('sunAz', `${Math.round(P.sunAz)}°`);
+    setVal('sunEl', `${Math.round(P.sunEl)}°`);
+    setVal('atmoD', P.atmoD.toFixed(2));
+    setVal('haze',  P.haze.toFixed(2));
+    setVal('exp',   P.exposure.toFixed(2));
+
+    // Clouds
+    EL.cloudOn.checked = !!P.cloudOn;
+    EL.cloudOp.value = String(P.cloudOpacity);
+    EL.cloudScale.value = String(P.cloudScale);
+    EL.cloudCov.value = String(P.cloudCoverage);
+    EL.cloudSoft.value = String(P.cloudSoftness);
+    EL.cloudSpeed.value = String(P.cloudSpeed);
+    EL.cloudSh.value = String(P.cloudShadowStrength);
+
+    setVal('cloudOn', P.cloudOn ? 'on' : 'off');
+    setVal('cloudOp', fmt2(P.cloudOpacity));
+    setVal('cloudScale', P.cloudScale.toFixed(2));
+    setVal('cloudCov', fmt2(P.cloudCoverage));
+    setVal('cloudSoft', P.cloudSoftness.toFixed(2));
+    setVal('cloudSpeed', P.cloudSpeed.toFixed(2));
+    setVal('cloudSh', P.cloudShadowStrength.toFixed(2));
+
+    // Scatter
+    EL.scatterOn.checked = !!P.scatterOn;
+    EL.scatterDen.value = String(P.scatterDen);
+    EL.scatterRad.value = String(P.scatterRad);
+    setVal('scatterOn', P.scatterOn ? 'on' : 'off');
+    setVal('scatterDen', fmt2(P.scatterDen));
+    setVal('scatterRad', fmt3(P.scatterRad));
+
+    // Photo
+    EL.fov.value = String(P.fov);
+    EL.alt.value = String(P.alt);
+    setVal('fov', `${Math.round(P.fov)}°`);
+    setVal('alt', P.alt.toFixed(3));
+  }
+  updateSegSelects();
+  syncUI();
+
+  // ---------- Presets ----------
+  // "best rn" as reported by you (heavy: midSegs=7168). Applied on demand.
+  const PRESETS = {
+    default: null,
+    best: {
+      lodMode: 'auto',
+      lod01: 0.24,
+      lod12: 1.60,
+      farSegs: 1024,
+      midSegs: 7168,
+      highSegs: 3072,
+      wire: false,
+      enableExtreme: true,
+      autoSegs: true,
+      autoQuality: true,
+      targetFPS: 60,
+      resScale: 1.35,
+      pixRatioCap: 2.0,
+      lodPx: 0.25,
+      heightAmp: 0.12,
+      noiseScale: 2.45,
+      seaLevel: 0.025,
+      temperature: 0.58,
+      sunAz: 35,
+      sunEl: 28,
+      atmoD: 0.21,
+      haze: 0.41,
+      exposure: 1.07,
+      cloudOn: true,
+      cloudOpacity: 0.43,
+      cloudScale: 6.0,
+      cloudCoverage: 0.44,
+      cloudSoftness: 0.22,
+      cloudSpeed: 0.19,
+      cloudShadowStrength: 0.63,
+      scatterOn: true,
+      scatterDen: 0.92,
+      scatterRad: 0.09,
+      fov: 42,
+      alt: 0.02,
+      seed: [12.3, -3.7, 8.9],
+    }
+  };
+
+  function applyPreset(name){
+    const pr = PRESETS[name];
+    if (!pr) return;
+
+    // seed first
+    if (pr.seed && pr.seed.length === 3){
+      seedV.set(pr.seed[0], pr.seed[1], pr.seed[2]);
+      UCommon.uSeed.value.copy(seedV);
+      if (cloudsMesh) cloudsMesh.material.uniforms.uSeed.value.copy(seedV);
+    }
+
+    // allow extreme seg options
+    if (typeof pr.enableExtreme === 'boolean'){
+      P.enableExtreme = pr.enableExtreme;
+      if (EL.extreme) EL.extreme.checked = !!P.enableExtreme;
+      applyExtremeMode();
+      updateSegSelects();
+    }
+
+    const keys = [
+      'lodMode','lod01','lod12','farSegs','midSegs','highSegs','wire',
+      'autoSegs','autoQuality','targetFPS','resScale','pixRatioCap','lodPx',
+      'heightAmp','noiseScale','seaLevel','temperature',
+      'sunAz','sunEl','atmoD','haze','exposure',
+      'cloudOn','cloudOpacity','cloudScale','cloudCoverage','cloudSoftness','cloudSpeed','cloudShadowStrength',
+      'scatterOn','scatterDen','scatterRad','fov','alt'
+    ];
+    for (const k of keys){
+      if (pr[k] !== undefined) P[k] = pr[k];
+    }
+
+    // Validate huge segs
+    if (P.midSegs >= 4096 && !confirmHugeSphere(P.midSegs)) P.midSegs = 3072;
+    if (P.highSegs >= 4096 && !confirmHugeSphere(P.highSegs)) P.highSegs = 3072;
+
+    if (EL.lodMode) EL.lodMode.value = P.lodMode;
+    if (EL.farSegs) EL.farSegs.value = String(P.farSegs);
+    if (EL.midSegs) EL.midSegs.value = String(P.midSegs);
+    if (EL.highSegs) EL.highSegs.value = String(P.highSegs);
+
+    // request geometry
+    requestSphereGeom(P.farSegs);
+    requestSphereGeom(P.midSegs);
+    requestSphereGeom(P.highSegs);
+
+    // apply render res
+    applyPixelRatio();
+
+    // wireframe immediate
+    if (surfaceFar) surfaceFar.material.wireframe = !!P.wire;
+    if (surfaceMid) surfaceMid.material.wireframe = !!P.wire;
+    if (surfaceHigh) surfaceHigh.material.wireframe = !!P.wire;
+
+    markTerrainDirty();
+    syncUI();
+  }
+
+
+  function markTerrainDirty(){
+    scatterState.dirty = true;
+  }
+
+  // LOD handlers
+  EL.lodMode.addEventListener('change', ()=>{
+    P.lodMode = String(EL.lodMode.value);
+    syncUI();
+  });
+  if (EL.presetSel) EL.presetSel.addEventListener('change', ()=>{
+    const name = String(EL.presetSel.value);
+    if (name === 'default') return; // do nothing (you can refresh for full default)
+    applyPreset(name);
+  });
+  EL.lod01.addEventListener('input', ()=>{
+    P.lod01 = parseFloat(EL.lod01.value);
+    syncUI();
+  });
+  EL.lod12.addEventListener('input', ()=>{
+    P.lod12 = parseFloat(EL.lod12.value);
+    syncUI();
+  });  EL.farSegs.addEventListener('change', ()=>{
+    P.farSegs = parseInt(EL.farSegs.value, 10);
+    requestSphereGeom(P.farSegs);
+    if (!P.autoSegs && surfaceFar) setMeshDesiredSeg(surfaceFar, P.farSegs);
+    markTerrainDirty();
+    syncUI();
+  });
+  EL.midSegs.addEventListener('change', ()=>{
+    let v = parseInt(EL.midSegs.value, 10);
+
+    if (v > 3072 && !P.enableExtreme){
+      P.enableExtreme = true;
+      EL.extreme.checked = true;
+      applyExtremeMode();
+      updateSegSelects();
+    }
+
+    if (v >= 4096){
+      if (!confirmHugeSphere(v)){
+        v = 3072;
+        EL.midSegs.value = String(v);
+      }
+    }
+
+    P.midSegs = v;
+    requestSphereGeom(P.midSegs);
+    if (!P.autoSegs && surfaceMid) setMeshDesiredSeg(surfaceMid, P.midSegs);
+    markTerrainDirty();
+    syncUI();
+  });
+  EL.highSegs.addEventListener('change', ()=>{
+    let v = parseInt(EL.highSegs.value, 10);
+
+    if (v > 3072 && !P.enableExtreme){
+      // user somehow picked an extreme value; force-enable extreme mode
+      P.enableExtreme = true;
+      EL.extreme.checked = true;
+      applyExtremeMode();
+      updateSegSelects();
+    }
+
+    if (v >= 4096){
+      if (!confirmHugeSphere(v)){
+        v = 3072;
+        EL.highSegs.value = String(v);
+      }
+    }
+
+    P.highSegs = v;
+    requestSphereGeom(P.highSegs);
+    if (!P.autoSegs && surfaceHigh) setMeshDesiredSeg(surfaceHigh, P.highSegs);
+    markTerrainDirty();
+    syncUI();
+  });
+  EL.extreme.addEventListener('change', ()=>{
+    P.enableExtreme = !!EL.extreme.checked;
+    applyExtremeMode();
+    updateSegSelects();
+
+    if (!P.enableExtreme){
+      if (P.midSegs > 3072) P.midSegs = 3072;
+      if (P.highSegs > 3072) P.highSegs = 3072;
+      EL.midSegs.value = String(P.midSegs);
+      EL.highSegs.value = String(P.highSegs);
+    }
+    markTerrainDirty();
+    syncUI();
+  });
+
+  EL.wire.addEventListener('change', ()=>{
+    P.wire = !!EL.wire.checked;
+    if (surfaceFar) surfaceFar.material.wireframe = !!P.wire;
+    if (surfaceMid) surfaceMid.material.wireframe = !!P.wire;
+    if (surfaceHigh) surfaceHigh.material.wireframe = !!P.wire;
+    syncUI();
+  });
+
+  // Auto segs + adaptive quality
+  EL.autoSegs.addEventListener('change', ()=>{
+    P.autoSegs = !!EL.autoSegs.checked;
+
+    // If we just turned auto off, immediately lock to the selected segment counts.
+    if (!P.autoSegs){
+      if (surfaceFar) setMeshDesiredSeg(surfaceFar, P.farSegs);
+      if (surfaceMid) setMeshDesiredSeg(surfaceMid, P.midSegs);
+      if (surfaceHigh) setMeshDesiredSeg(surfaceHigh, P.highSegs);
+    }
+
+    syncUI();
+  });
+  EL.autoQuality.addEventListener('change', ()=>{
+    P.autoQuality = !!EL.autoQuality.checked;
+    syncUI();
+  });
+  EL.targetFPS.addEventListener('input', ()=>{
+    P.targetFPS = parseFloat(EL.targetFPS.value);
+    syncUI();
+  });
+  EL.resScale.addEventListener('input', ()=>{
+    P.resScale = parseFloat(EL.resScale.value);
+    applyPixelRatio();
+    syncUI();
+  });
+  if (EL.prCap) EL.prCap.addEventListener('input', ()=>{
+    P.pixRatioCap = parseFloat(EL.prCap.value);
+    applyPixelRatio();
+    syncUI();
+  });
+  EL.lodPx.addEventListener('input', ()=>{
+    P.lodPx = parseFloat(EL.lodPx.value);
+    syncUI();
+  });
+
+
+  // Terrain handlers
+  EL.height.addEventListener('input', ()=>{ P.heightAmp = parseFloat(EL.height.value); markTerrainDirty(); syncUI(); });
+  EL.noise.addEventListener('input',  ()=>{ P.noiseScale = parseFloat(EL.noise.value); markTerrainDirty(); syncUI(); });
+  EL.sea.addEventListener('input',    ()=>{ P.seaLevel = parseFloat(EL.sea.value); markTerrainDirty(); syncUI(); });
+  EL.temp.addEventListener('input',   ()=>{ P.temperature = parseFloat(EL.temp.value); markTerrainDirty(); syncUI(); });
+
+  // Lighting handlers
+  EL.sunAz.addEventListener('input', ()=>{ P.sunAz = parseFloat(EL.sunAz.value); syncUI(); });
+  EL.sunEl.addEventListener('input', ()=>{ P.sunEl = parseFloat(EL.sunEl.value); syncUI(); });
+  EL.atmoD.addEventListener('input', ()=>{ P.atmoD = parseFloat(EL.atmoD.value); syncUI(); });
+  EL.haze.addEventListener('input',  ()=>{ P.haze = parseFloat(EL.haze.value); syncUI(); });
+  EL.exp.addEventListener('input',   ()=>{ P.exposure = parseFloat(EL.exp.value); syncUI(); });
+
+  // Cloud handlers
+  EL.cloudOn.addEventListener('change', ()=>{ P.cloudOn = !!EL.cloudOn.checked; syncUI(); });
+  EL.cloudOp.addEventListener('input', ()=>{ P.cloudOpacity = parseFloat(EL.cloudOp.value); syncUI(); });
+  EL.cloudScale.addEventListener('input', ()=>{ P.cloudScale = parseFloat(EL.cloudScale.value); syncUI(); });
+  EL.cloudCov.addEventListener('input', ()=>{ P.cloudCoverage = parseFloat(EL.cloudCov.value); syncUI(); });
+  EL.cloudSoft.addEventListener('input', ()=>{ P.cloudSoftness = parseFloat(EL.cloudSoft.value); syncUI(); });
+  EL.cloudSpeed.addEventListener('input', ()=>{ P.cloudSpeed = parseFloat(EL.cloudSpeed.value); syncUI(); });
+  EL.cloudSh.addEventListener('input', ()=>{ P.cloudShadowStrength = parseFloat(EL.cloudSh.value); syncUI(); });
+
+  // Scatter handlers
+  EL.scatterOn.addEventListener('change', ()=>{ P.scatterOn = !!EL.scatterOn.checked; scatterState.dirty = true; syncUI(); });
+  EL.scatterDen.addEventListener('input', ()=>{ P.scatterDen = parseFloat(EL.scatterDen.value); scatterState.dirty = true; syncUI(); });
+  EL.scatterRad.addEventListener('input', ()=>{ P.scatterRad = parseFloat(EL.scatterRad.value); scatterState.dirty = true; syncUI(); });
+
+  // Photo handlers
+  EL.fov.addEventListener('input', ()=>{ P.fov = parseFloat(EL.fov.value); syncUI(); });
+  EL.alt.addEventListener('input', ()=>{ P.alt = parseFloat(EL.alt.value); syncUI(); });
+
+  // Buttons
+  document.getElementById('btnMode').addEventListener('click', ()=> setMode(mode === Mode.PHOTO ? Mode.ORBIT : Mode.PHOTO));
+  document.getElementById('btnThirds').addEventListener('click', ()=> thirds.style.display = (thirds.style.display === 'none' ? 'block' : 'none'));
+
+  document.getElementById('btnSeed').addEventListener('click', ()=>{
+    simplex = new SimplexNoise(String(Math.floor(Math.random()*1e9)));
+    seedV.set((Math.random()*40)-20, (Math.random()*40)-20, (Math.random()*40)-20);
+
+    UCommon.uSeed.value.copy(seedV);
+    if (cloudsMesh) cloudsMesh.material.uniforms.uSeed.value.copy(seedV);
+
+    scatterState.dirty = true;
+    rebuildScatter();
+  });
+
+  document.getElementById('btnCopy').addEventListener('click', async ()=>{
+    const out = document.getElementById('out');
+    const lines = [
+      `lodMode: ${P.lodMode}`,
+      `lod01: ${P.lod01}`,
+      `lod12: ${P.lod12}`,      `farSegs: ${P.farSegs}`,
+      `midSegs: ${P.midSegs}`,
+      `highSegs: ${P.highSegs}`,
+      `wire: ${P.wire}`,
+
+      `heightAmp: ${P.heightAmp}`,
+      `noiseScale: ${P.noiseScale}`,
+      `seaLevel: ${P.seaLevel}`,
+      `temperature: ${P.temperature}`,
+      `sunAz: ${P.sunAz}`,
+      `sunEl: ${P.sunEl}`,
+      `atmoD: ${P.atmoD}`,
+      `haze: ${P.haze}`,
+      `exposure: ${P.exposure}`,
+      `cloudOn: ${P.cloudOn}`,
+      `cloudOpacity: ${P.cloudOpacity}`,
+      `cloudScale: ${P.cloudScale}`,
+      `cloudCoverage: ${P.cloudCoverage}`,
+      `cloudSoftness: ${P.cloudSoftness}`,
+      `cloudSpeed: ${P.cloudSpeed}`,
+      `cloudShadowStrength: ${P.cloudShadowStrength}`,
+      `scatterOn: ${P.scatterOn}`,
+      `scatterDen: ${P.scatterDen}`,
+      `scatterRad: ${P.scatterRad}`,
+      `fov: ${P.fov}`,
+      `alt: ${P.alt}`,
+      `seed: [${seedV.x.toFixed(3)}, ${seedV.y.toFixed(3)}, ${seedV.z.toFixed(3)}]`
+    ];
+    out.value = lines.join('\\n');
+    out.select();
+    try{ await navigator.clipboard.writeText(out.value); } catch {}
+  });
+
+  // Apply params into materials each frame
+  function applyParamsToShaders(timeSec){
+    // Terrain & look
+    UCommon.uNoiseScale.value = P.noiseScale;
+    UCommon.uHeightAmp.value = P.heightAmp;
+    UCommon.uSeaLevel.value = P.seaLevel;
+    UCommon.uTemperature.value = P.temperature;
+    UCommon.uExposure.value = P.exposure;
+    UCommon.uHaze.value = P.haze;
+
+    // Clouds shadow controls (surface)
+    UCommon.uCloudScale.value = P.cloudScale;
+    UCommon.uCloudSpeed.value = P.cloudSpeed;
+    UCommon.uCloudCoverage.value = P.cloudCoverage;
+    UCommon.uCloudSoftness.value = P.cloudSoftness;
+    UCommon.uCloudShadowStrength.value = (P.cloudOn ? P.cloudShadowStrength : 0.0);
+
+    UCommon.uTime.value = timeSec;
+    UCommon.uCameraPos.value.copy(camera.position);
+
+    if (atmoMesh){
+      atmoMesh.material.uniforms.uAtmoDensity.value = P.atmoD;
+      atmoMesh.material.uniforms.uCameraPos.value.copy(camera.position);
+    }
+
+    if (cloudsMesh){
+      cloudsMesh.visible = !!P.cloudOn;
+      const cu = cloudsMesh.material.uniforms;
+      cu.uCloudOpacity.value = P.cloudOpacity;
+      cu.uCloudScale.value = P.cloudScale;
+      cu.uCloudSpeed.value = P.cloudSpeed;
+      cu.uCloudCoverage.value = P.cloudCoverage;
+      cu.uCloudSoftness.value = P.cloudSoftness;
+      cu.uTime.value = timeSec;
+      cu.uCameraPos.value.copy(camera.position);
+    }
+
+    camera.fov = P.fov;
+    camera.updateProjectionMatrix();
+  }
+
+  // ---------- Resize ----------
+  window.addEventListener('resize', ()=>{
+    camera.aspect = innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+    applyPixelRatio();
+  });
+
+  // ---------- Animate ----------
+  let t0 = performance.now();
+  let last = t0;
+
+  // Performance tracking (FPS + stutter) + adaptive quality
+  const perf = {
+    samples: [],
+    fps: 0,
+    msAvg: 0,
+    msP95: 0,
+    stutterPct: 0,
+    lastReport: t0
+  };
+  const adapt = {
+    lowStreak: 0,
+    highStreak: 0,
+    lastChange: t0
+  };
+
+  function updatePerf(dtMs, nowMs){
+    perf.samples.push(dtMs);
+    if (perf.samples.length > 180) perf.samples.shift();
+
+    if (nowMs - perf.lastReport < 500 || perf.samples.length < 12) return;
+
+    const arr = perf.samples.slice();
+    arr.sort((a,b)=>a-b);
+    let sum = 0;
+    for (let i=0;i<arr.length;i++) sum += arr[i];
+    const avg = sum / arr.length;
+
+    perf.msAvg = avg;
+    perf.fps = 1000 / Math.max(0.001, avg);
+    perf.msP95 = arr[Math.floor(arr.length * 0.95)] || avg;
+
+    let st = 0;
+    for (let i=0;i<arr.length;i++) if (arr[i] > 33.0) st++;
+    perf.stutterPct = (st / arr.length) * 100.0;
+
+    perf.lastReport = nowMs;
+  }
+
+  function degradeQuality(nowMs){
+    let changed = false;
+
+    // First, lower pixel ratio cap (fast win) if it's above 2.0
+    if (P.pixRatioCap > 2.0){
+      P.pixRatioCap = Math.max(2.0, +(P.pixRatioCap - 0.10).toFixed(2));
+      applyPixelRatio();
+      changed = true;
+    }
+
+    // 1) Reduce render resolution first (cheap win; no geometry rebuild)
+    if (P.resScale > 0.65){
+      P.resScale = Math.max(0.60, +(P.resScale - 0.07).toFixed(2));
+      applyPixelRatio();
+      changed = true;
+    }
+    // 2) Then relax detail target (fewer sphere segments needed in autoSegs mode)
+    else if (P.autoSegs && P.lodPx < 18.0){
+      P.lodPx = Math.min(18.0, +(P.lodPx * 1.10).toFixed(1));
+      changed = true;
+    }
+
+    if (changed){
+      adapt.lastChange = nowMs;
+      syncUI();
+    }
+  }
+
+  function improveQuality(nowMs){
+    let changed = false;
+
+    // Try to increase geometric detail first (lower px/seg), then increase render resolution.
+    if (P.autoSegs && P.lodPx > 0.25){
+      P.lodPx = Math.max(0.25, +(P.lodPx * 0.92).toFixed(2));
+      changed = true;
+    }
+    else if (P.resScale < 2.0){
+      P.resScale = Math.min(2.0, +(P.resScale + 0.05).toFixed(2));
+      applyPixelRatio();
+      changed = true;
+    }
+    else if (P.pixRatioCap < 3.0){
+      P.pixRatioCap = Math.min(3.0, +(P.pixRatioCap + 0.10).toFixed(2));
+      applyPixelRatio();
+      changed = true;
+    }
+
+    if (changed){
+      adapt.lastChange = nowMs;
+      syncUI();
+    }
+  }
+
+  function maybeAdaptQuality(nowMs){
+    if (!P.autoQuality) return;
+    if (!perf.fps) return;
+
+    // Cooldown to avoid oscillation
+    if (nowMs - adapt.lastChange < 1500) return;
+
+    const budget = 1000 / Math.max(10, P.targetFPS);
+    const low  = (perf.fps < (P.targetFPS - 2)) || (perf.msP95 > budget * 1.35) || (perf.stutterPct > 6);
+    // For vsync-locked targets, allow 'high' when we're stable and p95 is near budget.
+    const high = (perf.fps >= (P.targetFPS - 0.5)) && (perf.msP95 < budget * 1.08) && (perf.stutterPct < 2);
+
+    if (low){
+      adapt.lowStreak++;
+      adapt.highStreak = 0;
+    } else if (high){
+      adapt.highStreak++;
+      adapt.lowStreak = 0;
+    } else {
+      adapt.lowStreak = 0;
+      adapt.highStreak = 0;
+    }
+
+    // Require sustained condition before changing
+    if (adapt.lowStreak >= 3){
+      adapt.lowStreak = 0;
+      degradeQuality(nowMs);
+    } else if (adapt.highStreak >= 6){
+      adapt.highStreak = 0;
+      improveQuality(nowMs);
+    }
+  }
+
+
+  function animate(now){
+    requestAnimationFrame(animate);
+
+    const dtMsRaw = now - last;
+    const dt = Math.min(0.033, dtMsRaw / 1000);
+    last = now;
+
+    // Perf + adaptive quality (runs in both orbit + photo)
+    const dtMs = Math.min(200, Math.max(0, dtMsRaw));
+    updatePerf(dtMs, now);
+    maybeAdaptQuality(now);
+
+    const timeSec = (now - t0) * 0.001;
+
+    // Rotate planet slowly
+    planet.rotation.y += 0.06 * dt;
+
+    // Keep sky centered on camera
+    if (skyMesh) skyMesh.position.copy(camera.position);
+
+    if (mode === Mode.PHOTO){
+      moveAnchorOnSphere(dt);
+      updateCameraPhoto();
+    } else {
+      anchorMarker.visible = false;
+      scatterGroup.visible = false;
+      orbit.update();
+
+      if (skyMesh) skyMesh.material.uniforms.uUpDir.value.copy(camera.up);
+    }
+
+    // LOD selection (works in both modes)
+    const scr = planetScreenMetrics();
+    const sf = scr.frac;
+    const diamPx = scr.diamPx;
+
+    // Auto segment selection: pick sphere segment counts based on on-screen size.
+    // (Keeps the planet looking smooth when it fills the frame, without always paying for max geo.)
+    const pxHigh = P.lodPx;
+    const pxMid  = P.lodPx * 1.6;
+    const pxFar  = P.lodPx * 2.4;
+
+    let segFar  = P.farSegs;
+    let segMid  = P.midSegs;
+    let segHigh = P.highSegs;
+
+    if (P.autoSegs){
+      const reqFar  = Math.ceil(Math.PI * diamPx / Math.max(1.0, pxFar));
+      const reqMid  = Math.ceil(Math.PI * diamPx / Math.max(1.0, pxMid));
+      const reqHigh = Math.ceil(Math.PI * diamPx / Math.max(1.0, pxHigh));
+
+      segFar  = chooseSeg(reqFar,  P.farSegs);
+      segMid  = chooseSeg(reqMid,  P.midSegs);
+      segHigh = chooseSeg(reqHigh, P.highSegs);
+    }
+
+    // Always keep far ready. Prefetch mid/high as we approach thresholds to avoid popping.
+    if (surfaceFar) setMeshDesiredSeg(surfaceFar, segFar);
+
+    const wantMid = (P.lodMode === 'mid') || (P.lodMode === 'high') || (P.lodMode === 'auto' && sf > (P.lod01 - 0.18));
+    if (surfaceMid && wantMid) setMeshDesiredSeg(surfaceMid, segMid);
+
+    const wantHigh = (P.lodMode === 'high') || (P.lodMode === 'auto' && sf > (P.lod12 - 0.18));
+    if (surfaceHigh && wantHigh) setMeshDesiredSeg(surfaceHigh, segHigh);
+
+    const lod = pickLOD(sf);
+    if (lod !== activeLOD) setActiveLOD(lod);
+
+
+
+    // If terrain params changed, we don't rebuild geo, but we DO need to refresh scatter
+    if (mode === Mode.PHOTO && P.scatterOn && scatterState.dirty){
+      rebuildScatter();
+    }
+
+    applyParamsToShaders(timeSec);
+    updateSunDir();
+
+    // HUD
+    const lat = Math.asin(photo.anchorDirLocal.y) * 180/Math.PI;
+    const lon = Math.atan2(photo.anchorDirLocal.z, photo.anchorDirLocal.x) * 180/Math.PI;
+
+    const alt = (camera.position.length() - 1.0);
+    const yaw = photo.yaw;
+    const pitch = photo.pitch;
+    const roll = photo.roll;
+
+    const lodName = (activeLOD === 0 ? 'far' : activeLOD === 1 ? 'mid' : 'high');
+
+    hudTitle.textContent = `HUD • ${perf.fps ? perf.fps.toFixed(0) : '--'} fps`;
+    const segF = surfaceFar ? (surfaceFar.userData.seg|0) : 0;
+    const segM = surfaceMid ? (surfaceMid.userData.seg|0) : 0;
+    const segH = surfaceHigh ? (surfaceHigh.userData.seg|0) : 0;
+
+    hudText.textContent =
+`Planetside Photo Mode — Pixcel Planet++ (adaptive LOD + worker)
+perf: ${perf.fps ? perf.fps.toFixed(0) : '--'} fps   avg: ${perf.msAvg ? perf.msAvg.toFixed(1) : '--'}ms   p95: ${perf.msP95 ? perf.msP95.toFixed(1) : '--'}ms   stutter: ${perf.stutterPct ? perf.stutterPct.toFixed(0) : '0'}%   geomJobs: ${geomPending.count}
+mode: ${mode}   LOD: ${lodName}   screenFrac: ${fmt2(sf)}   diamPx: ${fmt0(diamPx)}
+quality: autoSegs ${P.autoSegs?'on':'off'}   autoQ ${P.autoQuality?'on':'off'}   target ${Math.round(P.targetFPS)}fps
+         resScale ${fmt2(P.resScale)}   lodPx ${fmt1(P.lodPx)}
+segs: far ${segF}   mid ${segM}   high ${segH}   (max ${P.farSegs}/${P.midSegs}/${P.highSegs})
+
+FOV:  ${fmt0(camera.fov)}°   altitude: ${fmt3(alt)} (planet radii)
+sun:  az ${fmt0(P.sunAz)}°  el ${fmt0(P.sunEl)}°
+loc:  lat ${fmt2(lat)}°  lon ${fmt2(lon)}°
+look: yaw ${fmt2(yaw)}  pitch ${fmt2(pitch)}  roll ${fmt2(roll)}
+
+clouds: ${P.cloudOn?'on ':'off'} opacity ${fmt2(P.cloudOpacity)} coverage ${fmt2(P.cloudCoverage)}
+scatter: ${P.scatterOn?'on ':'off'} density ${fmt2(P.scatterDen)} radius ${fmt3(P.scatterRad)}
+
+controls:
+  H toggle HUD | P toggle Photo Mode | Space thirds
+  Orbit: drag + wheel | Photo: drag pan/tilt, wheel altitude, WASD move, Shift faster, Q/E roll, dblclick relocate
+`;
+
+    renderer.render(scene, camera);
+  }
+  requestAnimationFrame(animate);
+
+</script>
+
+</body>
+</html>
