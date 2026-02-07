@@ -90,6 +90,46 @@
     }
     #panel button:hover{ background:rgba(20,40,60,.5); }
     #panel .small{ font-size:11px; opacity:.9; }
+    #panel{
+      pointer-events:none; /* let camera gestures pass through when minimized */
+      box-shadow: 0 14px 60px rgba(0,0,0,.35);
+    }
+    #panelHeader{
+      pointer-events:auto;
+      display:flex; align-items:center; justify-content:space-between;
+      gap:10px;
+      padding:8px 10px;
+      border-radius:14px;
+      background:rgba(255,255,255,.04);
+      cursor:grab;
+      user-select:none;
+    }
+    #panelHeader:active{ cursor:grabbing; }
+    #panelTitle{
+      font:12px/1.1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      opacity:.95; letter-spacing:.2px; white-space:nowrap;
+    }
+    #panelBtns{ display:flex; align-items:center; gap:8px; }
+    #panel .miniBtn{
+      pointer-events:auto;
+      cursor:pointer;
+      border-radius:10px;
+      border:1px solid rgba(150,200,255,.22);
+      background:rgba(20,40,60,.35);
+      color:#e9fbff;
+      padding:4px 10px;
+      font-size:12px;
+    }
+    #panel .miniBtn:hover{ background:rgba(20,40,60,.5); }
+    #panelBody{ pointer-events:auto; padding: 10px 12px 12px; }
+    #panel.minimized #panelBody{ display:none; }
+    #panel.minimized{
+      width:auto;
+      max-height:none;
+      overflow:visible;
+      padding:0;
+    }
+
 
     /* Composition overlay: rule of thirds */
     #thirds{
@@ -772,10 +812,18 @@ n = 0.5*n + 0.5;
     </div>
     <pre id="hudText">Booting…</pre>
   </div>
+  </div>
 
   <div id="thirds"></div>
 
-  <div id="panel">
+  <div id="panel" class="minimized">
+    <div id="panelHeader">
+      <div id="panelTitle">Controls</div>
+      <div id="panelBtns">
+        <button class="miniBtn" id="panelMinBtn">Max</button>
+      </div>
+    </div>
+    <div id="panelBody">
     <h3>Mode</h3>
     <div class="btnrow">
       <button id="btnMode">Enter Photo Mode (P)</button>
@@ -992,6 +1040,62 @@ n = 0.5*n + 0.5;
   hudHeader.addEventListener('pointerup', endHudDrag);
   hudHeader.addEventListener('pointercancel', endHudDrag);
 
+
+  // ---------- Panel (controls) drag + minimized-on-start ----------
+  const panelEl = document.getElementById('panel');
+  const panelHeader = document.getElementById('panelHeader');
+  const panelMinBtn = document.getElementById('panelMinBtn');
+
+  const panelDrag = { active:false, pid:-1, offX:0, offY:0 };
+
+  function syncPanelBtn(){
+    if (!panelMinBtn) return;
+    const isMin = panelEl.classList.contains('minimized');
+    panelMinBtn.textContent = isMin ? 'Max' : 'Min';
+  }
+  // Start minimized (header-only) by default per request
+  panelEl.classList.add('minimized');
+  syncPanelBtn();
+
+  panelMinBtn.addEventListener('click', ()=>{
+    panelEl.classList.toggle('minimized');
+    syncPanelBtn();
+  });
+  panelHeader.addEventListener('dblclick', ()=>{
+    panelEl.classList.toggle('minimized');
+    syncPanelBtn();
+  });
+
+  panelHeader.addEventListener('pointerdown', (e)=>{
+    if (e.button !== 0) return;
+    panelDrag.active = true;
+    panelDrag.pid = e.pointerId;
+    const r = panelEl.getBoundingClientRect();
+    panelDrag.offX = e.clientX - r.left;
+    panelDrag.offY = e.clientY - r.top;
+    // Switch from right-anchored to free positioned
+    panelEl.style.right = 'auto';
+    panelEl.style.bottom = 'auto';
+    panelHeader.setPointerCapture(e.pointerId);
+  });
+  panelHeader.addEventListener('pointermove', (e)=>{
+    if (!panelDrag.active) return;
+    if (e.pointerId !== panelDrag.pid) return;
+    const innerW = window.innerWidth, innerH = window.innerHeight;
+    const r = panelEl.getBoundingClientRect();
+    const w = r.width, h = r.height;
+    const x = Math.max(8, Math.min(innerW - w - 8, e.clientX - panelDrag.offX));
+    const y = Math.max(8, Math.min(innerH - h - 8, e.clientY - panelDrag.offY));
+    panelEl.style.left = x + 'px';
+    panelEl.style.top  = y + 'px';
+  });
+  function endPanelDrag(){
+    if (!panelDrag.active) return;
+    panelDrag.active = false;
+    panelDrag.pid = -1;
+  }
+  panelHeader.addEventListener('pointerup', endPanelDrag);
+  panelHeader.addEventListener('pointercancel', endPanelDrag);
 
   // ---------- Params ----------
   // (JS is the source of truth; UI syncs to these.)
