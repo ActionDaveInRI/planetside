@@ -3,21 +3,106 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Planetside Photo Mode — Pixcel Planet++ (v17 Extreme Options)heres)</title>
+  <title>Planetside — Pixcel Planet++ (Menubar UI, no Photo Mode)</title>
   <style>
     html, body { margin:0; height:100%; overflow:hidden; background:#000; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
     canvas { width:100vw; height:100vh; display:block; }
 
+    /* Win95-ish top menubar */
+    #menubar{
+      position:fixed; left:0; right:0; top:0; height:34px;
+      background:#cfcfcf;
+      border-bottom:2px solid #888;
+      display:flex; align-items:center;
+      padding:0 6px;
+      z-index:1000;
+      font: 13px/1 "Segoe UI", Tahoma, Arial, sans-serif;
+      user-select:none;
+    }
+    #menubar ul{ list-style:none; margin:0; padding:0; display:flex; align-items:stretch; height:100%; gap:2px; }
+    #menubar li.menu{
+      position:relative;
+      display:flex; align-items:center;
+      padding:0 10px;
+      cursor:default;
+      border-radius:3px;
+    }
+    #menubar li.menu:hover{ background:#bdbdbd; outline:1px solid #7a7a7a; }
+    #menubar .menuTitle{ white-space:nowrap; }
+
+    /* dropdown */
+    #menubar .submenu{
+      display:none;
+      position:absolute;
+      top: calc(100% + 2px);
+      left:0;
+      min-width: 340px;
+      max-width: min(520px, calc(100vw - 16px));
+      max-height: calc(100vh - 44px);
+      overflow:auto;
+      background:#efefef;
+      border:1px solid #777;
+      box-shadow: 4px 4px 0 rgba(0,0,0,.35);
+      padding:10px 10px 12px;
+      z-index:1001;
+      color:#111;
+    }
+    #menubar li.menu:hover .submenu{ display:block; }
+    #menubar li.menu.open .submenu{ display:block; }
+
+    .sectionTitle{
+      font-weight:600;
+      margin: 2px 0 6px;
+      color:#111;
+      opacity:.9;
+    }
+
+    .row{ display:grid; grid-template-columns: 1fr 72px; gap:10px; align-items:center; margin:6px 0; }
+    .row label{ color:#111; font-size:12px; }
+    .row .val{ text-align:right; color:#111; font-variant-numeric: tabular-nums; font-size:12px; opacity:.85; }
+    .row input[type="range"], .row select, .row input[type="color"], .row input[type="number"]{ width:100%; }
+
+    .btnrow{ display:flex; gap:8px; margin:8px 0 6px; }
+    .mbtn{
+      flex:1;
+      border:1px solid #6f6f6f;
+      background:#dcdcdc;
+      color:#111;
+      padding:6px 10px;
+      border-radius:4px;
+      cursor:pointer;
+    }
+    .mbtn:hover{ background:#e8e8e8; }
+
+    textarea#out{
+      width:100%;
+      height:110px;
+      margin-top:8px;
+      background:#fff;
+      color:#111;
+      border:1px solid #777;
+      border-radius:4px;
+      padding:8px;
+      font: 11px/1.25 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      resize: vertical;
+      box-sizing:border-box;
+    }
+
     /* HUD (draggable, minimizable) */
     #hud{
-      position:fixed; left:12px; top:12px; z-index:10;
+      position:fixed; left:12px; top:44px; z-index:10;
       color:#d8f2ff;
       background:rgba(0,0,0,.38);
       border:1px solid rgba(140,210,255,.22);
       border-radius:12px;
       backdrop-filter: blur(6px);
       user-select:none;
-      max-width: 110ch;
+      box-sizing:border-box;
+      width: 420px;
+      min-width: 220px;
+      min-height: 44px;
+      max-width: min(110ch, calc(100vw - 24px));
+      max-height: calc(100vh - 70px);
       pointer-events:none;
       box-shadow: 0 14px 60px rgba(0,0,0,.35);
     }
@@ -59,76 +144,27 @@
       font-size:12px;
     }
     #hud .miniBtn:hover{ background:rgba(40,60,110,.55); }
-
-    /* Controls panel */
-    #panel{
-      position:fixed; right:12px; top:12px; z-index:20;
-      width: 360px; max-height: calc(100vh - 24px);
-      overflow:auto;
-      color:#eaf7ff;
-      background: rgba(0,0,0,.55);
-      border: 1px solid rgba(150,200,255,.22);
-      border-radius: 14px;
-      padding: 10px 12px 12px;
-      backdrop-filter: blur(8px);
-      font: 12px/1.25 system-ui, sans-serif;
-    }
-    #panel h3{ margin: 6px 0 8px; font-size: 13px; color:#e9fbff; letter-spacing: .2px; }
-    #panel .row{ display:grid; grid-template-columns: 1fr 72px; gap: 10px; align-items:center; margin: 6px 0; }
-    #panel label{ color:#bfe8ff; }
-    #panel .val{ text-align:right; color:#fff; font-variant-numeric: tabular-nums; }
-    #panel input[type="range"], #panel select{ width: 100%; }
-    #panel .btnrow{ display:flex; gap:8px; margin-top:10px; }
-    #panel button{
-      flex:1;
-      border:1px solid rgba(150,200,255,.22);
-      background:rgba(20,40,60,.35);
-      color:#e9fbff;
-      padding:8px 10px;
-      border-radius:10px;
-      cursor:pointer;
-    }
-    #panel button:hover{ background:rgba(20,40,60,.5); }
-    #panel .small{ font-size:11px; opacity:.9; }
-    #panel{
-      pointer-events:none; /* let camera gestures pass through when minimized */
-      box-shadow: 0 14px 60px rgba(0,0,0,.35);
-    }
-    #panelHeader{
+    #hudResizer{
+      position:absolute;
+      right:6px;
+      bottom:6px;
+      width:16px;
+      height:16px;
+      border-radius:4px;
       pointer-events:auto;
-      display:flex; align-items:center; justify-content:space-between;
-      gap:10px;
-      padding:8px 10px;
-      border-radius:14px;
-      background:rgba(255,255,255,.04);
-      cursor:grab;
-      user-select:none;
+      cursor:nwse-resize;
+      opacity:0.65;
+      background:
+        linear-gradient(135deg,
+          rgba(255,255,255,0.0) 0%,
+          rgba(255,255,255,0.0) 45%,
+          rgba(200,230,255,0.75) 46%,
+          rgba(200,230,255,0.75) 54%,
+          rgba(255,255,255,0.0) 55%,
+          rgba(255,255,255,0.0) 100%);
     }
-    #panelHeader:active{ cursor:grabbing; }
-    #panelTitle{
-      font:12px/1.1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      opacity:.95; letter-spacing:.2px; white-space:nowrap;
-    }
-    #panelBtns{ display:flex; align-items:center; gap:8px; }
-    #panel .miniBtn{
-      pointer-events:auto;
-      cursor:pointer;
-      border-radius:10px;
-      border:1px solid rgba(150,200,255,.22);
-      background:rgba(20,40,60,.35);
-      color:#e9fbff;
-      padding:4px 10px;
-      font-size:12px;
-    }
-    #panel .miniBtn:hover{ background:rgba(20,40,60,.5); }
-    #panelBody{ pointer-events:auto; padding: 10px 12px 12px; }
-    #panel.minimized #panelBody{ display:none; }
-    #panel.minimized{
-      width:auto;
-      max-height:none;
-      overflow:visible;
-      padding:0;
-    }
+    #hudResizer:hover{ opacity:0.95; }
+    #hud.minimized #hudResizer{ display:none; }
 
 
     /* Composition overlay: rule of thirds */
@@ -162,6 +198,12 @@
           rgba(255,255,255,0.18) calc(66.666% + 0.5px),
           rgba(255,255,255,0) calc(66.666% + 0.5px),
           rgba(255,255,255,0) 100%);
+    }
+
+    /* Make room for the menubar on touch devices */
+    @media (max-width: 720px){
+      #menubar{ height:36px; }
+      #hud{ top:48px; }
     }
   </style>
 
@@ -302,12 +344,15 @@
 
       float e = 0.62*continents + 0.34*mountains + 0.04*detail;
       float raw = e * uHeightAmp;
-      float h = max(0.0, raw - uSeaLevel);
+
+      // Surface displacement: land keeps its raw height; oceans clamp to sea level.
+      float surf = max(raw, uSeaLevel);
+      float h = max(0.0, raw - uSeaLevel); // height above sea (optional use)
 
       vRaw = raw;
       vH = h;
 
-      vec3 displaced = dir * (1.0 + h);
+      vec3 displaced = dir * (1.0 + surf);
       vec4 wpos = modelMatrix * vec4(displaced, 1.0);
       vWorldPos = wpos.xyz;
 
@@ -465,8 +510,13 @@
       float depth = smooth01(-0.06, 0.0, e - uSeaLevel);
 
       // Micro variation (higher "rez" look without more geo)
-      float micro = fbm4(radial * 32.0 + uSeed * 1.7);
+      vec3 microP = radial * 32.0 + uSeed * 1.7;
+      float micro = fbm4(microP);
       micro = 0.5*micro + 0.5;
+      // Anti-moire: fade micro when it becomes under-sampled on screen
+      float microF = length(fwidth(microP));
+      float microFade = 1.0 / (1.0 + 6.0 * microF);
+      micro = mix(0.5, micro, microFade);
 
       // Base colors
       vec3 deepWater    = vec3(0.02, 0.06, 0.13);
@@ -534,9 +584,14 @@
         float sa = sin(ang), ca = cos(ang);
         vec3 dC = normalize(vDir);
         dC = vec3(ca*dC.x + sa*dC.z, dC.y, -sa*dC.x + ca*dC.z);
-        float cn = fbm4(dC * uCloudScale + uSeed);
-cn = 0.5*cn + 0.5;
+        vec3 cP = dC * uCloudScale + uSeed;
+        float cn = fbm4(cP);
+        cn = 0.5*cn + 0.5;
         float cd = smoothstep(uCloudCoverage, uCloudCoverage + uCloudSoftness, cn);
+        // Anti-moire on cloud shadows
+        float cF = length(fwidth(cP));
+        float cFade = 1.0 / (1.0 + 4.0 * cF);
+        cd *= cFade;
         float shade = 1.0 - cs * cd * (0.25 + 0.75*NoL);
         lit *= shade;
       }
@@ -733,10 +788,13 @@ cn = 0.5*cn + 0.5;
       float sa = sin(ang), ca = cos(ang);
       vec3 dirR = normalize(vDir);
       dirR = vec3(ca*dirR.x + sa*dirR.z, dirR.y, -sa*dirR.x + ca*dirR.z);
-      float n = fbm(dirR * uCloudScale + uSeed);
-n = 0.5*n + 0.5;
-
-      float d = smoothstep(uCloudCoverage, uCloudCoverage + uCloudSoftness, n);
+      vec3 cP = dirR * uCloudScale + uSeed;
+      float n = fbm(cP);
+      n = 0.5*n + 0.5;
+      // Anti-moire: fade cloud detail when under-sampled
+      float cF = length(fwidth(cP));
+      float cFade = 1.0 / (1.0 + 3.0 * cF);
+      float d = smoothstep(uCloudCoverage, uCloudCoverage + uCloudSoftness, n) * cFade;
       // Thin clouds at the limb a bit (photographic)
       float limb = smoothstep(0.0, 0.35, NoV);
       float alpha = d * uCloudOpacity * limb * (0.35 + 0.65*NoL);
@@ -802,7 +860,194 @@ n = 0.5*n + 0.5;
 </head>
 <body>
   <canvas id="c"></canvas>
-  <div id="hud" class="hud">
+
+  <div id="menubar">
+    <ul>
+      <li class="menu"><span class="menuTitle">File</span>
+        <div class="submenu">
+          <div class="sectionTitle">Preset</div>
+          <div class="row">
+            <label>Preset</label>
+            <div class="val" id="v_preset"></div>
+            <select id="presetSel">
+              <option value="default" selected>default</option>
+            </select>
+          </div>
+
+          <div class="sectionTitle" style="margin-top:10px;">Actions</div>
+          <div class="btnrow">
+            <button class="mbtn" id="btnSeed">New Seed</button>
+            <button class="mbtn" id="btnCopy">Copy Settings</button>
+          </div>
+          <textarea id="out" spellcheck="false" placeholder="Copy Settings…"></textarea>
+        </div>
+      </li>
+
+      <li class="menu"><span class="menuTitle">View</span>
+        <div class="submenu">
+          <div class="btnrow">
+            <button class="mbtn" id="btnThirds">Thirds (Space)</button>
+            <button class="mbtn" id="btnHudToggle">Toggle HUD (H)</button>
+          </div>
+          <div class="row"><label>FOV</label><div class="val" id="v_fov"></div><input id="fov" type="range" min="18" max="90" step="1" value="42"></div>
+          <div class="row"><label>Wireframe</label><div class="val" id="v_wire"></div><input id="wire" type="checkbox"></div>
+        </div>
+      </li>
+
+      <li class="menu"><span class="menuTitle">LOD</span>
+        <div class="submenu">
+          <div class="row">
+            <label>LOD mode</label>
+            <div class="val" id="v_lodMode"></div>
+            <select id="lodMode">
+              <option value="auto" selected>auto</option>
+              <option value="far">far</option>
+              <option value="mid">mid</option>
+              <option value="high">high</option>
+            </select>
+          </div>
+          <div class="row"><label>Far→Mid threshold</label><div class="val" id="v_lod01"></div><input id="lod01" type="range" min="0.20" max="1.20" step="0.01" value="0.50"></div>
+          <div class="row"><label>Mid→High threshold</label><div class="val" id="v_lod12"></div><input id="lod12" type="range" min="0.30" max="1.60" step="0.01" value="1.10"></div>
+
+          <div class="sectionTitle" style="margin-top:10px;">Sphere LOD caps</div>
+          <div class="row"><label>Far segs</label><div class="val" id="v_farSegs"></div>
+            <select id="farSegs">
+              <option value="128">128</option>
+              <option value="192">192</option>
+              <option value="256">256</option>
+              <option value="384">384</option>
+              <option value="512">512</option>
+              <option value="768">768</option>
+              <option value="1024" selected>1024</option>
+            </select>
+          </div>
+          <div class="row"><label>Mid segs</label><div class="val" id="v_midSegs"></div>
+            <select id="midSegs">
+              <option value="384">384</option>
+              <option value="512">512</option>
+              <option value="768">768</option>
+              <option value="1024">1024</option>
+              <option value="1536">1536</option>
+              <option value="2048" selected>2048</option>
+              <option value="3072">3072</option>
+            </select>
+          </div>
+          <div class="row"><label>High segs</label><div class="val" id="v_highSegs"></div>
+            <select id="highSegs">
+              <option value="1024">1024</option>
+              <option value="1536">1536</option>
+              <option value="2048">2048</option>
+              <option value="2560">2560</option>
+              <option value="3072" selected>3072</option>
+            </select>
+          </div>
+          <div class="row"><label>Extreme LODs</label><div class="val" id="v_extreme"></div><input id="extreme" type="checkbox"></div>
+
+          <div class="sectionTitle" style="margin-top:10px;">Auto segs + quality</div>
+          <div class="row"><label>Auto segs</label><div class="val" id="v_autoSegs"></div><input id="autoSegs" type="checkbox" checked></div>
+          <div class="row"><label>Auto quality</label><div class="val" id="v_autoQuality"></div><input id="autoQuality" type="checkbox" checked></div>
+          <div class="row"><label>Target FPS</label><div class="val" id="v_targetFPS"></div><input id="targetFPS" type="range" min="30" max="90" step="1" value="60"></div>
+          <div class="row"><label>Resolution scale</label><div class="val" id="v_resScale"></div><input id="resScale" type="range" min="0.60" max="2.00" step="0.01" value="1.35"></div>
+          <div class="row"><label>Pixel ratio cap</label><div class="val" id="v_prCap"></div><input id="prCap" type="range" min="1.0" max="3.0" step="0.05" value="2.0"></div>
+          <div class="row"><label>Detail (px/seg)</label><div class="val" id="v_lodPx"></div><input id="lodPx" type="range" min="0.25" max="18.0" step="0.05" value="4.0"></div>
+
+          <div class="sectionTitle" style="margin-top:10px;">Onscreen cap</div>
+          <div class="row"><label>Cap enabled</label><div class="val" id="v_capOn"></div><input id="capOn" type="checkbox" checked></div>
+          <div class="row"><label>Cap start frac</label><div class="val" id="v_capStart"></div><input id="capStart" type="range" min="1.20" max="3.50" step="0.01" value="2.00"></div>
+          <div class="row"><label>Cap detail mult</label><div class="val" id="v_capMul"></div><input id="capMul" type="range" min="0.10" max="1.50" step="0.01" value="1.50"></div>
+          <div class="row"><label>Cap overscan</label><div class="val" id="v_capPad"></div><input id="capPad" type="range" min="1.05" max="1.90" step="0.01" value="1.35"></div>
+          <div class="row"><label>Cap max segs</label><div class="val" id="v_capSegs"></div>
+            <select id="capSegs">
+              <option value="512">512</option>
+              <option value="768">768</option>
+              <option value="1024">1024</option>
+              <option value="1536">1536</option>
+              <option value="2048" selected>2048</option>
+              <option value="2560">2560</option>
+              <option value="3072">3072</option>
+            </select>
+          </div>
+          <div class="row" style="display:none;"><label>Cap resolution</label><div class="val" id="v_capSegsMode"></div><select id="capSegsMode"></select></div>
+        </div>
+      </li>
+
+      <li class="menu"><span class="menuTitle">Terrain</span>
+        <div class="submenu">
+          <div class="row"><label>Height amp</label><div class="val" id="v_height"></div><input id="height" type="range" min="0.01" max="0.20" step="0.001" value="0.040"></div>
+          <div class="row"><label>Noise scale</label><div class="val" id="v_noise"></div><input id="noise" type="range" min="0.6" max="4.0" step="0.01" value="2.45"></div>
+          <div class="row"><label>Sea level</label><div class="val" id="v_sea"></div><input id="sea" type="range" min="-0.08" max="0.06" step="0.001" value="0.004"></div>
+          <div class="row"><label>Temperature</label><div class="val" id="v_temp"></div><input id="temp" type="range" min="0" max="1" step="0.01" value="0.36"></div>
+        </div>
+      </li>
+
+      <li class="menu"><span class="menuTitle">Lighting</span>
+        <div class="submenu">
+          <div class="row"><label>Sun azimuth</label><div class="val" id="v_sunAz"></div><input id="sunAz" type="range" min="-180" max="180" step="1" value="-20"></div>
+          <div class="row"><label>Sun elevation</label><div class="val" id="v_sunEl"></div><input id="sunEl" type="range" min="-10" max="85" step="1" value="49"></div>
+          <div class="row"><label>Atmos density</label><div class="val" id="v_atmoD"></div><input id="atmoD" type="range" min="0" max="1" step="0.01" value="0.23"></div>
+          <div class="row"><label>Haze</label><div class="val" id="v_haze"></div><input id="haze" type="range" min="0" max="1" step="0.01" value="0.84"></div>
+          <div class="row"><label>Exposure</label><div class="val" id="v_exp"></div><input id="exp" type="range" min="0.4" max="2.2" step="0.01" value="1.27"></div>
+        </div>
+      </li>
+
+      <li class="menu"><span class="menuTitle">Clouds</span>
+        <div class="submenu">
+          <div class="row"><label>Clouds</label><div class="val" id="v_cloudOn"></div><input id="cloudOn" type="checkbox" checked></div>
+          <div class="row"><label>Opacity</label><div class="val" id="v_cloudOp"></div><input id="cloudOp" type="range" min="0" max="1" step="0.01" value="0.71"></div>
+          <div class="row"><label>Scale</label><div class="val" id="v_cloudScale"></div><input id="cloudScale" type="range" min="0.5" max="6.0" step="0.05" value="6.00"></div>
+          <div class="row"><label>Coverage</label><div class="val" id="v_cloudCov"></div><input id="cloudCov" type="range" min="0.25" max="0.85" step="0.01" value="0.47"></div>
+          <div class="row"><label>Softness</label><div class="val" id="v_cloudSoft"></div><input id="cloudSoft" type="range" min="0.01" max="0.25" step="0.005" value="0.25"></div>
+          <div class="row"><label>Speed</label><div class="val" id="v_cloudSpeed"></div><input id="cloudSpeed" type="range" min="0.0" max="1.5" step="0.01" value="0.12"></div>
+          <div class="row"><label>Shadow strength</label><div class="val" id="v_cloudSh"></div><input id="cloudSh" type="range" min="0" max="1" step="0.01" value="0.55"></div>
+        </div>
+      </li>
+
+      <li class="menu"><span class="menuTitle">Grid</span>
+        <div class="submenu">
+          <div class="row"><label>Grid</label><div class="val" id="v_gridOn"></div><input id="gridOn" type="checkbox"></div>
+          <div class="row"><label>Detail</label><div class="val" id="v_gridDetail"></div><input id="gridDetail" type="range" min="0" max="7" step="1" value="3"></div>
+          <div class="row"><label>Alpha</label><div class="val" id="v_gridAlpha"></div><input id="gridAlpha" type="range" min="0" max="1" step="0.01" value="0.30"></div>
+          <div class="row"><label>Line thickness (px)</label><div class="val" id="v_gridThick"></div><input id="gridThick" type="range" min="1" max="8" step="0.25" value="2"></div>
+          <div class="row"><label>Line color</label><div class="val" id="v_gridColor"></div><input id="gridColor" type="color" value="#9bbcff"></div>
+          <div class="row"><label>Edge offset</label><div class="val" id="v_gridEdgeOff"></div><input id="gridEdgeOff" type="range" min="1.000" max="1.030" step="0.0005" value="1.0020"></div>
+          <div class="row"><label>Conform terrain</label><div class="val" id="v_gridConform"></div><input id="gridConform" type="checkbox" checked></div>
+          <div class="row"><label>Arc lines</label><div class="val" id="v_gridArc"></div><input id="gridArc" type="checkbox" checked></div>
+
+          <div class="sectionTitle" style="margin-top:10px;">Selection</div>
+          <div class="row"><label>Sel thickness (px)</label><div class="val" id="v_gridSelThick"></div><input id="gridSelThick" type="range" min="1" max="10" step="0.25" value="3"></div>
+          <div class="row"><label>Sel color</label><div class="val" id="v_gridSelColor"></div><input id="gridSelColor" type="color" value="#ffd27a"></div>
+          <div class="row"><label>Sel fill alpha</label><div class="val" id="v_gridFillA"></div><input id="gridFillA" type="range" min="0" max="0.35" step="0.01" value="0.12"></div>
+
+          <div class="sectionTitle" style="margin-top:10px;">Pentagons</div>
+          <div class="row"><label>Pent markers</label><div class="val" id="v_gridPent"></div><input id="gridPent" type="checkbox"></div>
+          <div class="row"><label>Pent color</label><div class="val" id="v_gridPentColor"></div><input id="gridPentColor" type="color" value="#9bbcff"></div>
+          <div class="row"><label>Pent size</label><div class="val" id="v_gridPentSize"></div><input id="gridPentSize" type="range" min="0.002" max="0.05" step="0.001" value="0.011"></div>
+          <div class="sectionTitle" style="margin-top:10px;">Dots</div>
+          <div class="row"><label>Dots</label><div class="val" id="v_gridDots"></div><input id="gridDots" type="checkbox" checked></div>
+          <div class="row"><label>Dot source</label><div class="val" id="v_gridDotMode"></div>
+            <select id="gridDotMode">
+              <option value="edges" selected>Edge verts</option>
+              <option value="corners">Corners</option>
+              <option value="cells">Cell centers</option>
+            </select>
+          </div>
+          <div class="row"><label>Dot stride</label><div class="val" id="v_gridDotStride"></div><input id="gridDotStride" type="range" min="1" max="12" step="1" value="3"></div>
+          <div class="row"><label>Dot color</label><div class="val" id="v_gridDotColor"></div><input id="gridDotColor" type="color" value="#9bbcff"></div>
+          <div class="row"><label>Dot opacity</label><div class="val" id="v_gridDotOpacity"></div><input id="gridDotOpacity" type="range" min="0" max="1" step="0.01" value="0.35"></div>
+          <div class="row"><label>Dot size</label><div class="val" id="v_gridDotSize"></div><input id="gridDotSize" type="range" min="0.002" max="0.060" step="0.001" value="0.014"></div>
+
+
+          <div class="btnrow">
+            <button class="mbtn" id="btnGridRebuild">Rebuild</button>
+            <button class="mbtn" id="btnGridToggle">Toggle (G)</button>
+          </div>
+        </div>
+      </li>
+
+    </ul>
+  </div>
+
+  <div id="hud" class="hud minimized">
     <div id="hudHeader">
       <div id="hudTitle">HUD</div>
       <div id="hudBtns">
@@ -811,158 +1056,17 @@ n = 0.5*n + 0.5;
       </div>
     </div>
     <pre id="hudText">Booting…</pre>
-  </div>
+    <div id="hudResizer" title="Resize"></div>
   </div>
 
   <div id="thirds"></div>
 
-  <div id="panel" class="minimized">
-    <div id="panelHeader">
-      <div id="panelTitle">Controls</div>
-      <div id="panelBtns">
-        <button class="miniBtn" id="panelMinBtn">Max</button>
-      </div>
-    </div>
-    <div id="panelBody">
-    <h3>Mode</h3>
-    <div class="btnrow">
-      <button id="btnMode">Enter Photo Mode (P)</button>
-      <button id="btnThirds">Thirds (Space)</button>
-    </div>
-    <div class="small" style="margin-top:8px; opacity:.9;">
-      Orbit: drag + wheel. Photo: drag pan/tilt; WASD move; wheel altitude; Q/E roll; double-click to set location.
-    </div>
-
-    <div style="height:1px; background:rgba(150,200,255,.18); margin:10px 0;"></div>
-
-    <h3>LOD + Quality</h3>
-    <div class="row">
-      <label>LOD mode</label>
-      <div class="val" id="v_lodMode"></div>
-      <select id="lodMode">
-        <option value="auto" selected>auto</option>
-        <option value="far">far</option>
-        <option value="mid">mid</option>
-        <option value="high">high</option>
-      </select>
-    </div>
-    <div class="row">
-      <label>Preset</label>
-      <div class="val" id="v_preset"></div>
-      <select id="presetSel">
-        <option value="default" selected>default</option>
-        <option value="best">best rn</option>
-      </select>
-    </div>
-    <div class="row"><label>Far→Mid threshold</label><div class="val" id="v_lod01"></div><input id="lod01" type="range" min="0.20" max="1.20" step="0.01" value="0.50" /></div>
-    <div class="row"><label>Mid→High threshold</label><div class="val" id="v_lod12"></div><input id="lod12" type="range" min="0.30" max="1.60" step="0.01" value="1.10" /></div>
-
-    <div class="row">
-      <label>Far sphere segs</label>
-      <div class="val" id="v_farSegs"></div>
-      <select id="farSegs">
-        <option value="128">128</option>
-        <option value="192">192</option>
-        <option value="256" selected>256</option>
-        <option value="384">384</option>
-        <option value="512">512</option>
-        <option value="768">768</option>
-        <option value="1024">1024</option>
-      </select>
-    </div>
-    <div class="row">
-      <label>Mid sphere segs</label>
-      <div class="val" id="v_midSegs"></div>
-      <select id="midSegs">
-        <option value="384">384</option>
-        <option value="512">512</option>
-        <option value="768" selected>768</option>
-        <option value="1024">1024</option>
-        <option value="1536">1536</option>
-        <option value="2048">2048</option>
-</select>
-    </div>
-    <div class="row">
-      <label>High sphere segs</label>
-      <div class="val" id="v_highSegs"></div>
-      <select id="highSegs">
-        <option value="1024">1024</option>
-        <option value="1536" selected>1536</option>
-        <option value="2048">2048</option>
-        <option value="2560">2560</option>
-        <option value="3072">3072</option>
-      </select>
-    </div>
-
-    <div class="row"><label>Extreme LODs</label><div class="val" id="v_extreme"></div><input id="extreme" type="checkbox" /></div>
-
-    <div class="row"><label>Wireframe</label><div class="val" id="v_wire"></div><input id="wire" type="checkbox" /></div>
-    <div class="row"><label>Auto segs</label><div class="val" id="v_autoSegs"></div><input id="autoSegs" type="checkbox" /></div>
-    <div class="row"><label>Auto quality</label><div class="val" id="v_autoQuality"></div><input id="autoQuality" type="checkbox" /></div>
-    <div class="row"><label>Target FPS</label><div class="val" id="v_targetFPS"></div><input id="targetFPS" type="range" min="30" max="90" step="1" value="60" /></div>
-    <div class="row"><label>Resolution scale</label><div class="val" id="v_resScale"></div><input id="resScale" type="range" min="0.60" max="2.00" step="0.01" value="1.35" /></div>
-    <div class="row"><label>Pixel ratio cap</label><div class="val" id="v_prCap"></div><input id="prCap" type="range" min="1.0" max="3.0" step="0.05" value="2.0" /></div>
-    <div class="row"><label>Detail (px/seg)</label><div class="val" id="v_lodPx"></div><input id="lodPx" type="range" min="0.25" max="18.0" step="0.05" value="4.0" /></div>
-
-
-    <div class="small" style="margin-top:6px; opacity:.8;">
-      Auto LOD uses planet diameter on screen (fraction of the smaller viewport dimension). Mid/High use full spheres (no camera-facing caps) to avoid view-locked artifacts.
-    </div>
-
-    <div style="height:1px; background:rgba(150,200,255,.18); margin:10px 0;"></div>
-
-    <h3>Terrain</h3>
-    <div class="row"><label>Height amp</label><div class="val" id="v_height"></div><input id="height" type="range" min="0.01" max="0.20" step="0.001" value="0.085"></div>
-    <div class="row"><label>Noise scale</label><div class="val" id="v_noise"></div><input id="noise" type="range" min="0.6" max="4.0" step="0.01" value="2.2"></div>
-    <div class="row"><label>Sea level</label><div class="val" id="v_sea"></div><input id="sea" type="range" min="-0.08" max="0.06" step="0.001" value="-0.012"></div>
-    <div class="row"><label>Temperature</label><div class="val" id="v_temp"></div><input id="temp" type="range" min="0" max="1" step="0.01" value="0.52"></div>
-
-    <div style="height:1px; background:rgba(150,200,255,.18); margin:10px 0;"></div>
-
-    <h3>Light + Atmosphere</h3>
-    <div class="row"><label>Sun azimuth</label><div class="val" id="v_sunAz"></div><input id="sunAz" type="range" min="-180" max="180" step="1" value="35"></div>
-    <div class="row"><label>Sun elevation</label><div class="val" id="v_sunEl"></div><input id="sunEl" type="range" min="-10" max="85" step="1" value="28"></div>
-    <div class="row"><label>Atmos density</label><div class="val" id="v_atmoD"></div><input id="atmoD" type="range" min="0" max="1" step="0.01" value="0.55"></div>
-    <div class="row"><label>Haze</label><div class="val" id="v_haze"></div><input id="haze" type="range" min="0" max="1" step="0.01" value="0.42"></div>
-    <div class="row"><label>Exposure</label><div class="val" id="v_exp"></div><input id="exp" type="range" min="0.4" max="2.2" step="0.01" value="1.05"></div>
-
-    
-    <div style="height:1px; background:rgba(150,200,255,.18); margin:10px 0;"></div>
-
-    <h3>Clouds</h3>
-    <div class="row"><label>Clouds</label><div class="val" id="v_cloudOn"></div><input id="cloudOn" type="checkbox" checked /></div>
-    <div class="row"><label>Cloud opacity</label><div class="val" id="v_cloudOp"></div><input id="cloudOp" type="range" min="0" max="1" step="0.01" value="0.55"></div>
-    <div class="row"><label>Cloud scale</label><div class="val" id="v_cloudScale"></div><input id="cloudScale" type="range" min="0.5" max="6.0" step="0.05" value="2.80"></div>
-    <div class="row"><label>Cloud coverage</label><div class="val" id="v_cloudCov"></div><input id="cloudCov" type="range" min="0.25" max="0.85" step="0.01" value="0.55"></div>
-    <div class="row"><label>Cloud softness</label><div class="val" id="v_cloudSoft"></div><input id="cloudSoft" type="range" min="0.01" max="0.25" step="0.005" value="0.10"></div>
-    <div class="row"><label>Cloud speed</label><div class="val" id="v_cloudSpeed"></div><input id="cloudSpeed" type="range" min="0.0" max="1.5" step="0.01" value="0.35"></div>
-    <div class="row"><label>Shadow strength</label><div class="val" id="v_cloudSh"></div><input id="cloudSh" type="range" min="0" max="1" step="0.01" value="0.45"></div>
-
-    <div style="height:1px; background:rgba(150,200,255,.18); margin:10px 0;"></div>
-
-    <h3>Ground Scatter</h3>
-    <div class="row"><label>Scatter</label><div class="val" id="v_scatterOn"></div><input id="scatterOn" type="checkbox" checked /></div>
-    <div class="row"><label>Density</label><div class="val" id="v_scatterDen"></div><input id="scatterDen" type="range" min="0" max="1" step="0.01" value="0.65"></div>
-    <div class="row"><label>Patch radius</label><div class="val" id="v_scatterRad"></div><input id="scatterRad" type="range" min="0.02" max="0.15" step="0.005" value="0.070"></div>
-
-
-    <div style="height:1px; background:rgba(150,200,255,.18); margin:10px 0;"></div>
-
-    <h3>Photo</h3>
-    <div class="row"><label>FOV</label><div class="val" id="v_fov"></div><input id="fov" type="range" min="18" max="90" step="1" value="42"></div>
-    <div class="row"><label>Altitude</label><div class="val" id="v_alt"></div><input id="alt" type="range" min="0.002" max="0.120" step="0.001" value="0.020"></div>
-
-    <div class="btnrow">
-      <button id="btnSeed">New Seed</button>
-      <button id="btnCopy">Copy Settings</button>
-    </div>
-    <textarea id="out" spellcheck="false" style="width:100%; height:110px; margin-top:10px; background:rgba(0,0,0,.35); color:#e9fbff; border:1px solid rgba(150,200,255,.18); border-radius:10px; padding:8px; font: 11px/1.25 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; resize: vertical;" placeholder="Copy Settings…"></textarea>
-  </div>
-
-
 <script type="module">
   import * as THREE from 'three';
   import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
+  import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
+  import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 
   const canvas = document.getElementById('c');
   const hudEl = document.getElementById('hud');
@@ -971,6 +1075,7 @@ n = 0.5*n + 0.5;
   const hudTitle = document.getElementById('hudTitle');
   const hudMinBtn = document.getElementById('hudMinBtn');
   const hudHideBtn = document.getElementById('hudHideBtn');
+  const hudResizer = document.getElementById('hudResizer');
   const thirds = document.getElementById('thirds');
 
   // ---------- HUD interactions ----------
@@ -979,7 +1084,23 @@ n = 0.5*n + 0.5;
   function saveHud(){
     try{
       const r = hudEl.getBoundingClientRect();
-      const s = { x: r.left, y: r.top, minimized: hudEl.classList.contains('minimized'), hidden: hudEl.classList.contains('hidden') };
+      const minimized = hudEl.classList.contains('minimized');
+      const hidden = hudEl.classList.contains('hidden');
+
+      let prev = null;
+      try{ prev = JSON.parse(localStorage.getItem('pp_hud') || 'null'); } catch {}
+
+      const s = { x: r.left, y: r.top, minimized, hidden };
+
+      // Persist last "expanded" size so minimizing doesn't overwrite it
+      if (!minimized){
+        s.w = r.width;
+        s.h = r.height;
+      } else if (prev){
+        if (typeof prev.w === 'number') s.w = prev.w;
+        if (typeof prev.h === 'number') s.h = prev.h;
+      }
+
       localStorage.setItem('pp_hud', JSON.stringify(s));
     } catch {}
   }
@@ -988,10 +1109,19 @@ n = 0.5*n + 0.5;
       const raw = localStorage.getItem('pp_hud');
       if (!raw) return;
       const s = JSON.parse(raw);
+
       if (typeof s.x === 'number') hudEl.style.left = Math.max(8, s.x) + 'px';
       if (typeof s.y === 'number') hudEl.style.top  = Math.max(8, s.y) + 'px';
-      if (s.minimized) hudEl.classList.add('minimized');
-      if (s.hidden) hudEl.classList.add('hidden');
+
+      // Default is minimized; only remove if explicitly saved as false.
+      if (s.minimized === true) hudEl.classList.add('minimized');
+      else if (s.minimized === false) hudEl.classList.remove('minimized');
+
+      if (s.hidden === true) hudEl.classList.add('hidden');
+      else if (s.hidden === false) hudEl.classList.remove('hidden');
+
+      if (typeof s.w === 'number') hudEl.style.width  = Math.max(220, Math.min(innerWidth - 24, s.w)) + 'px';
+      if (typeof s.h === 'number') hudEl.style.height = Math.max(44,  Math.min(innerHeight - 70, s.h)) + 'px';
     } catch {}
   }
   loadHud();
@@ -1039,63 +1169,81 @@ n = 0.5*n + 0.5;
   }
   hudHeader.addEventListener('pointerup', endHudDrag);
   hudHeader.addEventListener('pointercancel', endHudDrag);
+  // HUD resize handle (bottom-right)
+  const hudResize = { active:false, pid:-1, startX:0, startY:0, startW:0, startH:0 };
 
-
-  // ---------- Panel (controls) drag + minimized-on-start ----------
-  const panelEl = document.getElementById('panel');
-  const panelHeader = document.getElementById('panelHeader');
-  const panelMinBtn = document.getElementById('panelMinBtn');
-
-  const panelDrag = { active:false, pid:-1, offX:0, offY:0 };
-
-  function syncPanelBtn(){
-    if (!panelMinBtn) return;
-    const isMin = panelEl.classList.contains('minimized');
-    panelMinBtn.textContent = isMin ? 'Max' : 'Min';
+  function clampHudSize(w, h){
+    const maxW = Math.max(240, innerWidth - 24);
+    const maxH = Math.max(120, innerHeight - 70);
+    return {
+      w: Math.max(220, Math.min(maxW, w)),
+      h: Math.max(44,  Math.min(maxH, h))
+    };
   }
-  // Start minimized (header-only) by default per request
-  panelEl.classList.add('minimized');
-  syncPanelBtn();
 
-  panelMinBtn.addEventListener('click', ()=>{
-    panelEl.classList.toggle('minimized');
-    syncPanelBtn();
-  });
-  panelHeader.addEventListener('dblclick', ()=>{
-    panelEl.classList.toggle('minimized');
-    syncPanelBtn();
-  });
+  if (hudResizer){
+    hudResizer.addEventListener('pointerdown', (e)=>{
+      if (e.button !== 0) return;
+      if (hudEl.classList.contains('hidden')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      hudResize.active = true;
+      hudResize.pid = e.pointerId;
 
-  panelHeader.addEventListener('pointerdown', (e)=>{
-    if (e.button !== 0) return;
-    panelDrag.active = true;
-    panelDrag.pid = e.pointerId;
-    const r = panelEl.getBoundingClientRect();
-    panelDrag.offX = e.clientX - r.left;
-    panelDrag.offY = e.clientY - r.top;
-    // Switch from right-anchored to free positioned
-    panelEl.style.right = 'auto';
-    panelEl.style.bottom = 'auto';
-    panelHeader.setPointerCapture(e.pointerId);
-  });
-  panelHeader.addEventListener('pointermove', (e)=>{
-    if (!panelDrag.active) return;
-    if (e.pointerId !== panelDrag.pid) return;
-    const innerW = window.innerWidth, innerH = window.innerHeight;
-    const r = panelEl.getBoundingClientRect();
-    const w = r.width, h = r.height;
-    const x = Math.max(8, Math.min(innerW - w - 8, e.clientX - panelDrag.offX));
-    const y = Math.max(8, Math.min(innerH - h - 8, e.clientY - panelDrag.offY));
-    panelEl.style.left = x + 'px';
-    panelEl.style.top  = y + 'px';
-  });
-  function endPanelDrag(){
-    if (!panelDrag.active) return;
-    panelDrag.active = false;
-    panelDrag.pid = -1;
+      const r = hudEl.getBoundingClientRect();
+      hudResize.startW = r.width;
+      hudResize.startH = r.height;
+      hudResize.startX = e.clientX;
+      hudResize.startY = e.clientY;
+
+      hudResizer.setPointerCapture(e.pointerId);
+    }, {passive:false});
+
+    hudResizer.addEventListener('pointermove', (e)=>{
+      if (!hudResize.active) return;
+      const dx = e.clientX - hudResize.startX;
+      const dy = e.clientY - hudResize.startY;
+      const s = clampHudSize(hudResize.startW + dx, hudResize.startH + dy);
+      hudEl.style.width = s.w + 'px';
+      hudEl.style.height = s.h + 'px';
+    });
+
+    function endHudResize(){
+      if (!hudResize.active) return;
+      hudResize.active = false;
+      hudResize.pid = -1;
+      saveHud();
+    }
+    hudResizer.addEventListener('pointerup', endHudResize);
+    hudResizer.addEventListener('pointercancel', endHudResize);
   }
-  panelHeader.addEventListener('pointerup', endPanelDrag);
-  panelHeader.addEventListener('pointercancel', endPanelDrag);
+
+
+  // ---------- Menubar interactions (Win95-ish) ----------
+  const menuEls = Array.from(document.querySelectorAll('#menubar li.menu'));
+  function closeMenus(){ menuEls.forEach(m=>m.classList.remove('open')); }
+  function toggleMenu(m){
+    const was = m.classList.contains('open');
+    closeMenus();
+    if (!was) m.classList.add('open');
+  }
+  menuEls.forEach(m=>{
+    const title = m.querySelector('.menuTitle') || m;
+    title.addEventListener('pointerdown', (e)=>{
+      // allow clicking inside submenu controls without collapsing
+      e.preventDefault();
+      e.stopPropagation();
+      toggleMenu(m);
+    }, {passive:false});
+    const sub = m.querySelector('.submenu');
+    if (sub){
+      sub.addEventListener('pointerdown', (e)=>{ e.stopPropagation(); }, {passive:true});
+      sub.addEventListener('wheel', (e)=>{ e.stopPropagation(); }, {passive:true});
+    }
+  });
+  window.addEventListener('pointerdown', ()=>closeMenus(), {passive:true});
+  window.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') closeMenus(); });
+
 
   // ---------- Params ----------
   // (JS is the source of truth; UI syncs to these.)
@@ -1104,8 +1252,8 @@ n = 0.5*n + 0.5;
     lodMode: 'auto',        // auto | far | mid | high
     lod01: 0.50,            // far -> mid when planet diameter fraction exceeds this
     lod12: 1.10,            // mid -> high when planet diameter fraction exceeds this
-    farSegs: 512,
-    midSegs: 1536,
+    farSegs: 1024,
+    midSegs: 2048,
     highSegs: 3072,
     wire: false,
     enableExtreme: false,
@@ -1117,37 +1265,63 @@ n = 0.5*n + 0.5;
     pixRatioCap: 2.0,    // max renderer pixelRatio (higher = sharper, heavier)
     lodPx: 4.0,           // target pixels per segment at high LOD (lower = more detail)
 
+    // Onscreen-only high detail cap (kicks in at high screenFrac)
+    capOn: true,
+    capStart: 2.00,
+    capMul: 1.50,
+    capSegs: 2048,
+    capPad: 1.35,
+    capSmooth: 12.0,
+    capTanSmooth: 10.0,
+
+
+    // Grid overlay (dual/hex grid tech from planet_grid_test_demo)
+    gridOn: false,
+    gridDetail: 3,
+    gridAlpha: 0.30,
+    gridEdgeOff: 1.0020,
+    gridArc: true,
+    gridPent: false,
+    gridConform: true,
+    gridDots: true,
+    gridDotMode: 'edges',
+    gridDotStride: 3,
+
+    // Grid styling
+    gridThick: 2.0,
+    gridColor: new THREE.Color(0x9bbcff),
+    gridSelThick: 3.0,
+    gridSelColor: new THREE.Color(0xffd27a),
+    gridFillA: 0.12,
+    gridPentColor: new THREE.Color(0x9bbcff),
+    gridPentSize: 0.011,
+
+    gridDotColor: new THREE.Color(0x9bbcff),
+    gridDotOpacity: 0.35,
+    gridDotSize: 0.014,
+
     // Terrain
-    heightAmp: 0.12,
+    heightAmp: 0.04,
     noiseScale: 2.45,
     seaLevel:  0.004,
-    temperature: 0.52,
-
+    temperature: 0.36,
     // Light + air
-    sunAz: 35,
-    sunEl: 28,
-    atmoD: 0.72,
-    haze: 0.48,
-    exposure: 1.08,
-
+    sunAz: -20,
+    sunEl: 49,
+    atmoD: 0.23,
+    haze: 0.84,
+    exposure: 1.27,
     // Clouds
     cloudOn: true,
-    cloudOpacity: 0.62,
-    cloudScale: 3.10,
-    cloudCoverage: 0.62,
-    cloudSoftness: 0.14,
-    cloudSpeed: 0.35,
+    cloudOpacity: 0.71,
+    cloudScale: 6.0,
+    cloudCoverage: 0.47,
+    cloudSoftness: 0.25,
+    cloudSpeed: 0.12,
     cloudShadowStrength: 0.55,
-
-    // Photo rig
+    // View
     fov: 42,
-    alt: 0.020,
-
-    // Scatter
-    scatterOn: true,
-    scatterDen: 0.92,
-    scatterRad: 0.090,
-
+    anchorMarker: false,
     // Misc
     atmoColor: new THREE.Color(0x8ac8ff),
     cloudColor: new THREE.Color(0xffffff),
@@ -1180,7 +1354,7 @@ n = 0.5*n + 0.5;
       'resScale','lodPx','targetFPS','farSegs','midSegs','highSegs','enableExtreme',
       'heightAmp','noiseScale','seaLevel','temperature',
       'sunAz','sunEl','atmoD','haze','exposure',
-      'scatterDen','scatterRad'
+'gridOn','gridDetail','gridAlpha','gridEdgeOff','gridArc','gridPent','capOn','capStart','capMul','capPad','capSegs'
     ];
     const missing = [];
     const bad = [];
@@ -1229,7 +1403,7 @@ n = 0.5*n + 0.5;
   orbit.enableDamping = true;
   orbit.dampingFactor = 0.06;
   orbit.target.set(0,0,0);
-  orbit.minDistance = 1.15;
+  orbit.minDistance = 1.005;
   orbit.maxDistance = 10.0;
   orbit.enablePan = true;
 
@@ -1268,6 +1442,21 @@ n = 0.5*n + 0.5;
   const BASE_PLANET_VS = document.getElementById('planetVS').textContent;
   const BASE_PLANET_FS = document.getElementById('planetFS').textContent;
 
+  // Cap (onscreen patch) vertex shader: same terrain, but direction comes from a camera-centered patch frame
+  const CAP_PLANET_VS = (()=>{
+    let vs = BASE_PLANET_VS;
+    vs = vs.replace('uniform float uTime;', 'uniform float uTime;\nuniform vec3 uCapDir;\nuniform vec3 uCapT1;\nuniform vec3 uCapT2;\nuniform float uCapTan;');
+    vs = vs.replace('vec3 dir = normalize(position);', 'vec2 xy0 = position.xy;\n      vec3 dir = normalize(uCapDir + xy0.x * uCapTan * uCapT1 + xy0.y * uCapTan * uCapT2);');
+    return vs;
+  })();
+
+  const UCap = {
+    uCapDir: { value: new THREE.Vector3(0,1,0) },
+    uCapT1:  { value: new THREE.Vector3(1,0,0) },
+    uCapT2:  { value: new THREE.Vector3(0,0,1) },
+    uCapTan: { value: 1.0 },
+  };
+
 
   // ---------- Helpers ----------
   function smoothstep01(a,b,x){
@@ -1297,9 +1486,144 @@ n = 0.5*n + 0.5;
     return { frac: diamPx / denom, diamPx, denom };
   }
 
+  // ---- Cap patch frame helpers ----
+  const _tmpV0 = new THREE.Vector3();
+  const _tmpV1 = new THREE.Vector3();
+  const _tmpV2 = new THREE.Vector3();
+  const _tmpV3 = new THREE.Vector3();
+  const _invQ = new THREE.Quaternion();
+  // Keep camera outside the displaced surface (lets you zoom deep without getting stuck, and prevents "pole snaps").
+  const _camDirW2 = new THREE.Vector3();
+  const _camDirL2 = new THREE.Vector3();
+  function enforceCameraOutsidePlanet(){
+    const rCam = camera.position.length();
+    if (rCam < 1e-6) return;
+    _camDirW2.copy(camera.position).normalize();
+
+    _invQ.copy(planet.quaternion).invert();
+    _camDirL2.copy(_camDirW2).applyQuaternion(_invQ).normalize();
+
+    const rSurf = surfaceRadiusAtDirLocal(_camDirL2) + 0.0015;
+    if (rCam < rSurf){
+      camera.position.multiplyScalar(rSurf / rCam);
+    }
+  }
+
+  // Keep camera above the local tangent plane at a locked tile (prevents "digging into the planet"
+  // when you drag toward a lateral/horizon view, while still allowing deep zoom).
+  const _lockTmpV = new THREE.Vector3();
+  
+function enforceAboveTileTangent(tilePosW, tileUpW){
+  if (!tilePosW || !tileUpW) return;
+
+  // v = camera relative to tile
+  const v = _lockTmpV.copy(camera.position).sub(tilePosW);
+  const d = v.length();
+  if (d < 1e-6) return;
+
+  // height above local tangent plane
+  const h = v.dot(tileUpW);
+
+  // tilt: 0 = top-down, pi/2 = lateral
+  const cosT = THREE.MathUtils.clamp(h / d, -1, 1);
+  const tilt = Math.acos(cosT);
+
+  // When very close to the tile, require more clearance.
+  const near = THREE.MathUtils.clamp((0.28 - d) / 0.28, 0, 1);
+
+  // When tilting toward lateral, require more clearance.
+  const tilt01 = smoothstep01(0.75, 1.40, tilt);
+
+  const minH = THREE.MathUtils.clamp(
+    0.012 + 0.050 * near + 0.085 * tilt01 * (0.25 + 0.75 * near),
+    0.012,
+    0.16
+  );
+
+  if (h < minH){
+    camera.position.addScaledVector(tileUpW, (minH - h));
+  }
+}
+
+// Cap frame smoothing (reduces jitter/moire when cap is active)
+  const _capRefY = new THREE.Vector3(0,1,0);
+  const _capRefX = new THREE.Vector3(1,0,0);
+  let _capLastT = performance.now();
+  const _capDirSm = new THREE.Vector3(0,1,0);
+  let _capTanSm = 1.0;
+
+  function halfDiagFovRad(){
+    const v = THREE.MathUtils.degToRad(camera.fov);
+    const aspect = camera.aspect || 1;
+    const tv = Math.tan(v*0.5);
+    const th = tv * aspect;
+    // half diagonal angle
+    return Math.atan(Math.sqrt(tv*tv + th*th));
+  }
+
+  function raySphereDir(o, d){
+    // Solve |o + t d|^2 = 1 for smallest positive t. Returns unit direction of hit point, or null.
+    const b = 2.0 * o.dot(d);
+    const c = o.dot(o) - 1.0;
+    const disc = b*b - 4.0*c;
+    if (disc < 0.0) return null;
+    const s = Math.sqrt(disc);
+    const t0 = (-b - s) * 0.5;
+    const t1 = (-b + s) * 0.5;
+    const t = (t0 > 0.0) ? t0 : (t1 > 0.0 ? t1 : -1.0);
+    if (t <= 0.0) return null;
+    const p = _tmpV0.copy(o).addScaledVector(d, t);
+    return p.normalize();
+  }
+
+  function updateCapFrame(screenFrac){
+    // Smoothed cap center + FOV overscan to reduce jitter/moire.
+    const now = performance.now();
+    const dt = Math.min(0.05, Math.max(0.001, (now - _capLastT) * 0.001));
+    _capLastT = now;
+
+    // Center cap on the surface point under the center of the view (ray-sphere hit).
+    const oW = _tmpV1.copy(camera.position);
+    const dW = camera.getWorldDirection(_tmpV2).normalize();
+    let dirW = raySphereDir(oW, dW);
+    if (!dirW){
+      // fallback: point on sphere facing camera
+      dirW = _tmpV0.copy(camera.position).normalize().multiplyScalar(-1);
+    }
+
+    // Convert to planet-local so it co-rotates with the planet
+    _invQ.copy(planet.quaternion).invert();
+    const dirL = _tmpV3.copy(dirW).applyQuaternion(_invQ).normalize();
+
+    // Smooth the direction (lerp+normalize is stable and cheap)
+    const aDir = 1.0 - Math.exp(-dt * (P.capSmooth || 12.0));
+    _capDirSm.lerp(dirL, aDir).normalize();
+
+    // Tangent frame in local space (derived from smoothed direction)
+    const dS = _capDirSm;
+    const ref = Math.abs(dS.y) < 0.95 ? _capRefY : _capRefX;
+    const t1 = _tmpV1.crossVectors(ref, dS).normalize();
+    const t2 = _tmpV2.crossVectors(dS, t1).normalize();
+
+    UCap.uCapDir.value.copy(dS);
+    UCap.uCapT1.value.copy(t1);
+    UCap.uCapT2.value.copy(t2);
+
+    const halfDiag = halfDiagFovRad();
+    const sf = Math.max(2.0, Math.min(8.0, screenFrac));
+    const pad = (P.capPad !== undefined) ? P.capPad : 1.35;
+
+    // Overscan cap angle + smooth it so the projection doesn't "breathe" with tiny camera changes.
+    const capAng = THREE.MathUtils.clamp(halfDiag * pad / Math.sqrt(sf/2.0), THREE.MathUtils.degToRad(12), THREE.MathUtils.degToRad(75));
+    const desiredTan = Math.tan(capAng);
+    const aTan = 1.0 - Math.exp(-dt * (P.capTanSmooth || 10.0));
+    _capTanSm = THREE.MathUtils.lerp(_capTanSm, desiredTan, aTan);
+    UCap.uCapTan.value = _capTanSm;
+  }
+
   // ---------- CPU height for ground-follow ----------
   function heightAtDirLocal(dir){
-    // Keep in sync with vertex shader (approx).
+    // Raw displacement (matches shader-ish elevation; may be negative).
     const x = dir.x*P.noiseScale + seedV.x;
     const y = dir.y*P.noiseScale + seedV.y;
     const z = dir.z*P.noiseScale + seedV.z;
@@ -1318,27 +1642,810 @@ n = 0.5*n + 0.5;
 
     const e = 0.62*continents + 0.34*mountains + 0.04*detail;
     const raw = e * P.heightAmp;
-    const h = Math.max(0, raw - P.seaLevel);
-    return h;
+    return raw;
+  }
+
+  function aboveSeaAtDirLocal(dir){
+    return heightAtDirLocal(dir) - (P.seaLevel || 0.0);
+  }
+
+  function surfaceDispAtDirLocal(dir){
+    // This matches the vertex shader: ocean surface clamps to sea level.
+    return Math.max(heightAtDirLocal(dir), (P.seaLevel || 0.0));
   }
 
   // ---------- Planet group ----------
   const planet = new THREE.Group();
   scene.add(planet);
 
-  // Separate group for local “ground scatter” so we can toggle quickly
-  const scatterGroup = new THREE.Group();
-  planet.add(scatterGroup);
-
   let surfaceFar = null;
   let surfaceMid = null;
   let surfaceHigh = null;
+  let surfaceCap = null;
   let cloudsMesh = null;
   let atmoMesh = null;
+  const ATMO_BASE_R = 1.03;
+
+  function desiredAtmoRadius(){
+    // Make sure the atmo shell is always outside the highest plausible surface radius.
+    const maxDisp = Math.max(0.0, (P.heightAmp || 0.0), (P.seaLevel || 0.0));
+    return 1.0 + maxDisp + 0.03;
+  }
+
+  function updateAtmoScale(){
+    if (!atmoMesh) return;
+    const r = desiredAtmoRadius();
+    const s = r / ATMO_BASE_R;
+    atmoMesh.scale.setScalar(s);
+  }
+
   let skyMesh = null;
 
   // Active LOD (0=far sphere, 1=mid sphere, 2=high sphere)
   let activeLOD = 0;
+  let capActive = false;
+
+
+  // ---------- Planet Grid / Hexworld tech (dual grid + tile selection) ----------
+  // Adapted from planet_grid_test_demo.html
+  const gridGroup = new THREE.Group();
+  planet.add(gridGroup);
+
+  const gridState = {
+    visible: false,
+    dirtyTopo: true,
+    dirty: true,
+    topo: null,
+    lines: null,
+    pents: null,
+    selLines: null,
+    selFill: null,
+    selected: -1,
+  };
+
+  function updateGridVisibility(){
+    gridState.visible = !!P.gridOn;
+    gridGroup.visible = gridState.visible;
+    if (!gridState.visible) return;
+    if (gridState.dirtyTopo || gridState.dirty) rebuildGrid();
+  }
+
+  let _gridNextBuild = 0;
+  function maybeRebuildGrid(now){
+    if (!gridState.visible) return;
+    if (!gridState.dirty && !gridState.dirtyTopo) return;
+    const t = (now !== undefined) ? now : performance.now();
+    if (t < _gridNextBuild) return;
+    rebuildGrid();
+    _gridNextBuild = t + 120; // debounce rebuilds when terrain sliders move
+  }
+
+  function surfaceRadiusAtDirLocal(dir){
+    // dir is unit in planet-local space
+    return 1.0 + surfaceDispAtDirLocal(dir);
+  }
+
+  function weldVertices(posAttr, eps){
+    const map = new Map();
+    const welded = [];
+    const remap = new Array(posAttr.count);
+    const inv = 1 / eps;
+
+    function key(x,y,z){
+      const xi = Math.round(x * inv);
+      const yi = Math.round(y * inv);
+      const zi = Math.round(z * inv);
+      return xi + "," + yi + "," + zi;
+    }
+
+    for (let i=0;i<posAttr.count;i++){
+      const x = posAttr.getX(i);
+      const y = posAttr.getY(i);
+      const z = posAttr.getZ(i);
+      const k = key(x,y,z);
+
+      let id = map.get(k);
+      if (id === undefined){
+        id = welded.length / 3;
+        map.set(k, id);
+        welded.push(x,y,z);
+      }
+      remap[i] = id;
+    }
+
+    const triCount = posAttr.count / 3;
+    const index = new Uint32Array(triCount * 3);
+    for (let t=0;t<triCount;t++){
+      index[t*3+0] = remap[t*3+0];
+      index[t*3+1] = remap[t*3+1];
+      index[t*3+2] = remap[t*3+2];
+    }
+
+    return { weldedPos: new Float32Array(welded), index };
+  }
+
+  function normalize3(x,y,z){
+    const m = Math.sqrt(x*x+y*y+z*z) || 1;
+    return [x/m, y/m, z/m];
+  }
+
+  function buildGridTopology(detail){
+    const ico = new THREE.IcosahedronGeometry(1.0, detail);
+    const pos = ico.getAttribute('position');
+    const idxAttr = ico.getIndex();
+
+    let verts = null;
+    let index = null;
+
+    if (idxAttr && idxAttr.count >= 3){
+      // Still weld to ensure true uniqueness for vertex->face mapping.
+      const welded = weldVertices(pos, 1e-6);
+      verts = welded.weldedPos;
+      index = welded.index;
+    } else {
+      const welded = weldVertices(pos, 1e-6);
+      verts = welded.weldedPos;
+      index = welded.index;
+    }
+
+    const vCount = verts.length / 3;
+    const fCount = index.length / 3;
+
+    // cell centers are dual vertices (unique ico verts), unit directions
+    const cellCenters = new Float32Array(vCount * 3);
+    for (let i=0;i<vCount;i++){
+      const x = verts[i*3+0], y = verts[i*3+1], z = verts[i*3+2];
+      const n = normalize3(x,y,z);
+      cellCenters[i*3+0]=n[0]; cellCenters[i*3+1]=n[1]; cellCenters[i*3+2]=n[2];
+    }
+
+    // vertex -> faces
+    const vertFaces = new Array(vCount);
+    for (let i=0;i<vCount;i++) vertFaces[i] = [];
+    for (let f=0; f<fCount; f++){
+      vertFaces[index[f*3+0]].push(f);
+      vertFaces[index[f*3+1]].push(f);
+      vertFaces[index[f*3+2]].push(f);
+    }
+
+    const cellDegree = new Uint8Array(vCount);
+    const pentIndices = [];
+    for (let i=0;i<vCount;i++){
+      const deg = vertFaces[i].length;
+      cellDegree[i] = deg;
+      if (deg === 5) pentIndices.push(i);
+    }
+
+    // face centers (unit) for dual edges
+    const faceCenters = new Array(fCount);
+    for (let f=0; f<fCount; f++){
+      const a = index[f*3+0], b = index[f*3+1], c = index[f*3+2];
+      const ax = verts[a*3+0], ay = verts[a*3+1], az = verts[a*3+2];
+      const bx = verts[b*3+0], by = verts[b*3+1], bz = verts[b*3+2];
+      const cx = verts[c*3+0], cy = verts[c*3+1], cz = verts[c*3+2];
+      const mx = ax+bx+cx, my = ay+by+cy, mz = az+bz+cz;
+      const nn = normalize3(mx,my,mz);
+      faceCenters[f] = new THREE.Vector3(nn[0], nn[1], nn[2]);
+    }
+
+    // dual edges: connect adjacent face centers across each primal edge
+    const dualEdges = [];
+    const edgeToFace = new Map();
+    function ekey(u,v){ return (u < v) ? (u + "," + v) : (v + "," + u); }
+    function addEdge(k, f){
+      const prev = edgeToFace.get(k);
+      if (prev === undefined) edgeToFace.set(k, f);
+      else { dualEdges.push([prev, f]); edgeToFace.delete(k); }
+    }
+    for (let f=0; f<fCount; f++){
+      const a = index[f*3+0], b = index[f*3+1], c = index[f*3+2];
+      addEdge(ekey(a,b), f);
+      addEdge(ekey(b,c), f);
+      addEdge(ekey(c,a), f);
+    }
+
+    return { cellCenters, cellDegree, pentIndices, faceCenters, dualEdges, vertFaces, faceVerts:index };
+  }
+
+  function gridRadiusAtDirLocal(dir){
+    // When enabled, conform grid lines/points to terrain (prevents mountains intersecting the grid).
+    // When disabled, draw on the sea surface sphere (fast + clean).
+    if (!P.gridConform) return 1.0 + (P.seaLevel || 0.0);
+    return surfaceRadiusAtDirLocal(dir);
+  }
+
+  function pushArcSegmentsOnSurface(outVerts, aDir, bDir, lift, steps){
+    // aDir/bDir are unit vectors (THREE.Vector3)
+    let dot = aDir.dot(bDir);
+    dot = Math.max(-1, Math.min(1, dot));
+    const ang = Math.acos(dot);
+
+    if (ang < 1e-6){
+      const ra = gridRadiusAtDirLocal(aDir) * lift;
+      const rb = gridRadiusAtDirLocal(bDir) * lift;
+      outVerts.push(aDir.x*ra,aDir.y*ra,aDir.z*ra, bDir.x*rb,bDir.y*rb,bDir.z*rb);
+      return;
+    }
+
+    const sinAng = Math.sin(ang);
+    let prevDir = aDir.clone();
+    let prevPos = prevDir.clone().multiplyScalar(gridRadiusAtDirLocal(prevDir) * lift);
+
+    for (let s=1; s<=steps; s++){
+      const t = s / steps;
+      const w1 = Math.sin((1 - t) * ang) / sinAng;
+      const w2 = Math.sin(t * ang) / sinAng;
+
+      const dir = new THREE.Vector3(
+        aDir.x*w1 + bDir.x*w2,
+        aDir.y*w1 + bDir.y*w2,
+        aDir.z*w1 + bDir.z*w2
+      ).normalize();
+
+      const pos = dir.clone().multiplyScalar(gridRadiusAtDirLocal(dir) * lift);
+      outVerts.push(prevPos.x, prevPos.y, prevPos.z, pos.x, pos.y, pos.z);
+      prevPos = pos;
+    }
+  }
+
+  function buildOrderedFaceRing(vIndex, topo){
+    const faces = topo.vertFaces[vIndex];
+    if (!faces || faces.length < 3) return null;
+
+    const edgeMap = new Map();
+    const neighbors = new Map();
+    function ekey(a,b){ return (a<b)?(a+","+b):(b+","+a); }
+
+    for (let i=0;i<faces.length;i++){
+      const f = faces[i];
+      const a = topo.faceVerts[f*3+0], b = topo.faceVerts[f*3+1], c = topo.faceVerts[f*3+2];
+      let o1=-1, o2=-1;
+      if (a === vIndex){ o1=b; o2=c; }
+      else if (b === vIndex){ o1=a; o2=c; }
+      else { o1=a; o2=b; }
+      addEdgeFace(ekey(vIndex,o1), f);
+      addEdgeFace(ekey(vIndex,o2), f);
+    }
+
+    function addEdgeFace(k, f){
+      const prev = edgeMap.get(k);
+      if (prev === undefined) edgeMap.set(k, f);
+      else {
+        if (!neighbors.has(f)) neighbors.set(f, []);
+        if (!neighbors.has(prev)) neighbors.set(prev, []);
+        neighbors.get(f).push(prev);
+        neighbors.get(prev).push(f);
+        edgeMap.delete(k);
+      }
+    }
+
+    const start = faces[0];
+    const ring = [start];
+    const used = new Set([start]);
+
+    const n0 = neighbors.get(start);
+    if (!n0 || n0.length === 0) return faces.slice();
+
+    let prev = start;
+    let cur = n0[0];
+
+    while (true){
+      if (used.has(cur)) break;
+      ring.push(cur);
+      used.add(cur);
+
+      const ns = neighbors.get(cur);
+      if (!ns || ns.length === 0) break;
+
+      const next = (ns.length === 1) ? ns[0] : (ns[0] === prev ? ns[1] : ns[0]);
+      prev = cur;
+      cur = next;
+
+      if (cur === start) break;
+      if (ring.length > faces.length + 2) break;
+    }
+
+    // If we didn't visit all, fallback to unsorted
+    if (ring.length !== faces.length) return faces.slice();
+    return ring;
+  }
+
+  function clearGridMeshes(){
+    if (gridState.lines){ gridGroup.remove(gridState.lines); try{ gridState.lines.geometry.dispose(); }catch{} try{ gridState.lines.material.dispose(); }catch{} gridState.lines = null; }
+    if (gridState.dots){ gridGroup.remove(gridState.dots); try{ gridState.dots.geometry.dispose(); }catch{} try{ gridState.dots.material.dispose(); }catch{} gridState.dots = null; }
+    if (gridState.pents){ gridGroup.remove(gridState.pents); try{ gridState.pents.geometry.dispose(); }catch{} try{ gridState.pents.material.dispose(); }catch{} gridState.pents = null; }
+    if (gridState.selLines){ gridGroup.remove(gridState.selLines); try{ gridState.selLines.geometry.dispose(); }catch{} try{ gridState.selLines.material.dispose(); }catch{} gridState.selLines = null; }
+    if (gridState.selFill){ gridGroup.remove(gridState.selFill); try{ gridState.selFill.geometry.dispose(); }catch{} try{ gridState.selFill.material.dispose(); }catch{} gridState.selFill = null; }
+  }
+
+  function rebuildGrid(){
+    if (!gridState.visible) return;
+
+    const detail = Math.max(0, Math.min(7, (P.gridDetail|0)));
+    if (gridState.dirtyTopo || !gridState.topo || gridState.topo.detail !== detail){
+      const topo = buildGridTopology(detail);
+      topo.detail = detail;
+      gridState.topo = topo;
+      // default selection: closest to the point facing the camera (stable in orbit)
+      const dW = camera.position.clone().normalize().multiplyScalar(-1);
+      _invQ.copy(planet.quaternion).invert();
+      const dL = dW.applyQuaternion(_invQ).normalize();
+      gridState.selected = findNearestCellByDir(dL, topo.cellCenters);
+      gridState.dirtyTopo = false;
+      gridState.dirty = true;
+    }
+
+    if (!gridState.dirty) {
+      // still update vis toggles/opacity
+      if (gridState.lines) gridState.lines.material.opacity = P.gridAlpha;
+      if (gridState.pents) gridState.pents.visible = !!P.gridPent;
+      return;
+    }
+
+    clearGridMeshes();
+
+    const topo = gridState.topo;
+    const lift = P.gridEdgeOff || 1.0020;
+    const arc = !!P.gridArc;
+    const steps = arc ? Math.max(3, 10 - topo.detail) : 1;
+
+    // Build dual edge lines
+    const verts = [];
+    for (let i=0; i<topo.dualEdges.length; i++){
+      const a = topo.faceCenters[topo.dualEdges[i][0]];
+      const b = topo.faceCenters[topo.dualEdges[i][1]];
+      if (!arc){
+        const ra = gridRadiusAtDirLocal(a) * lift;
+        const rb = gridRadiusAtDirLocal(b) * lift;
+        verts.push(a.x*ra,a.y*ra,a.z*ra, b.x*rb,b.y*rb,b.z*rb);
+      } else {
+        pushArcSegmentsOnSurface(verts, a, b, lift, steps);
+      }
+    }
+    const g = new LineSegmentsGeometry();
+    g.setPositions(verts);
+    const m = new LineMaterial({
+      color: P.gridColor.getHex(),
+      linewidth: Math.max(1.0, P.gridThick),
+      transparent: true,
+      opacity: P.gridAlpha,
+      depthWrite: false,
+      depthTest: true,
+      worldUnits: false,
+      alphaToCoverage: true,
+    });
+    m.resolution.set(innerWidth, innerHeight);
+    const lines = new LineSegments2(g, m);
+    lines.frustumCulled = false;
+    gridGroup.add(lines);
+    gridState.lines = lines;
+
+    // Dots overlay (adds "pips" around the hex lines)
+    if (P.gridDots){
+      const mode = String(P.gridDotMode || 'edges');
+      const stride = Math.max(1, (P.gridDotStride|0));
+      const dotPos = [];
+
+      const seen = new Set();
+
+      function addDot(x,y,z){
+        dotPos.push(x,y,z);
+      }
+
+      if (mode === 'cells'){
+        const n = topo.cellCenters.length / 3;
+        for (let i=0;i<n;i++){
+          if ((i % stride) !== 0) continue;
+          const dx = topo.cellCenters[i*3+0], dy = topo.cellCenters[i*3+1], dz = topo.cellCenters[i*3+2];
+          const d = new THREE.Vector3(dx,dy,dz).normalize();
+          const r = gridRadiusAtDirLocal(d) * (lift + 0.0006);
+          addDot(d.x*r, d.y*r, d.z*r);
+        }
+      } else if (mode === 'corners'){
+        const n = topo.faceCenters.length / 3;
+        for (let i=0;i<n;i++){
+          if ((i % stride) !== 0) continue;
+          const dx = topo.faceCenters[i*3+0], dy = topo.faceCenters[i*3+1], dz = topo.faceCenters[i*3+2];
+          const d = new THREE.Vector3(dx,dy,dz).normalize();
+          const r = gridRadiusAtDirLocal(d) * (lift + 0.0006);
+          addDot(d.x*r, d.y*r, d.z*r);
+        }
+      } else {
+        // edges: re-use the already-built line vertices (dedup + stride)
+        let c = 0;
+        for (let i=0;i<verts.length;i+=3){
+          if ((c++ % stride) !== 0) continue;
+          const x = verts[i], y = verts[i+1], z = verts[i+2];
+
+          const kx = Math.round(x*10000), ky = Math.round(y*10000), kz = Math.round(z*10000);
+          const key = kx + ',' + ky + ',' + kz;
+          if (seen.has(key)) continue;
+          seen.add(key);
+
+          const s = 1.0 + 0.0006;
+          addDot(x*s, y*s, z*s);
+        }
+      }
+
+      const dg = new THREE.BufferGeometry();
+      dg.setAttribute('position', new THREE.Float32BufferAttribute(dotPos,3));
+
+      const dm = new THREE.PointsMaterial({
+        color: P.gridDotColor.getHex(),
+        size: Math.max(0.001, P.gridDotSize || 0.014),
+        transparent: true,
+        opacity: Math.min(1, Math.max(0, P.gridDotOpacity)),
+        depthWrite: false,
+        depthTest: true,
+      });
+
+      const dots = new THREE.Points(dg, dm);
+      dots.frustumCulled = false;
+      dots.renderOrder = 1;
+      gridGroup.add(dots);
+      gridState.dots = dots;
+    }
+
+
+    // Pent markers
+    const pts = [];
+    for (let k=0;k<topo.pentIndices.length;k++){
+      const idx = topo.pentIndices[k];
+      const x = topo.cellCenters[idx*3+0], y = topo.cellCenters[idx*3+1], z = topo.cellCenters[idx*3+2];
+      const dir = new THREE.Vector3(x,y,z);
+      const r = gridRadiusAtDirLocal(dir) * (lift + 0.0006);
+      pts.push(dir.x*r, dir.y*r, dir.z*r);
+    }
+    const pg = new THREE.BufferGeometry();
+    pg.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    const pm = new THREE.PointsMaterial({ color: P.gridPentColor.getHex(), size: P.gridPentSize, transparent:true, opacity:0.55, depthWrite:false, depthTest:false });
+    const pents = new THREE.Points(pg, pm);
+    pents.visible = !!P.gridPent;
+    pents.frustumCulled = false;
+    gridGroup.add(pents);
+    gridState.pents = pents;
+
+    // Selection overlay
+    rebuildGridSelection();
+
+    gridState.dirty = false;
+    updateGridLineRes();
+  }
+
+  function rebuildGridSelection(){
+    const topo = gridState.topo;
+    if (!topo || gridState.selected < 0) return;
+
+    const vIndex = gridState.selected;
+    const ring = buildOrderedFaceRing(vIndex, topo);
+    if (!ring || ring.length < 3) return;
+
+    const lift = (P.gridEdgeOff || 1.0020) + 0.0018;
+    const arc = !!P.gridArc;
+    const steps = arc ? Math.max(4, 12 - topo.detail) : 1;
+
+    const outlineDirs = ring.map(fid => topo.faceCenters[fid].clone().normalize());
+
+    // outline
+    const lineVerts = [];
+    for (let i=0;i<outlineDirs.length;i++){
+      const da = outlineDirs[i];
+      const db = outlineDirs[(i+1)%outlineDirs.length];
+      if (!arc){
+        const ra = gridRadiusAtDirLocal(da) * lift;
+        const rb = gridRadiusAtDirLocal(db) * lift;
+        lineVerts.push(da.x*ra,da.y*ra,da.z*ra, db.x*rb,db.y*rb,db.z*rb);
+      } else {
+        pushArcSegmentsOnSurface(lineVerts, da, db, lift, steps);
+      }
+    }
+    const lg = new LineSegmentsGeometry();
+    lg.setPositions(lineVerts);
+    const lm = new LineMaterial({
+      color: P.gridSelColor.getHex(),
+      linewidth: Math.max(1.0, P.gridSelThick),
+      transparent: true,
+      opacity: 0.95,
+      depthWrite: false,
+      depthTest: false,
+      worldUnits: false,
+      alphaToCoverage: true,
+    });
+    lm.resolution.set(innerWidth, innerHeight);
+    const selLines = new LineSegments2(lg, lm);
+    selLines.frustumCulled = false;
+    gridGroup.add(selLines);
+    gridState.selLines = selLines;
+
+
+    // fill fan
+    const cx = topo.cellCenters[vIndex*3+0], cy = topo.cellCenters[vIndex*3+1], cz = topo.cellCenters[vIndex*3+2];
+    const cDir = new THREE.Vector3(cx,cy,cz).normalize();
+    const cR = gridRadiusAtDirLocal(cDir) * lift;
+    const center = new THREE.Vector3(cDir.x*cR, cDir.y*cR, cDir.z*cR);
+
+    const tris = [];
+    for (let i=0;i<outlineDirs.length;i++){
+      const da = outlineDirs[i];
+      const db = outlineDirs[(i+1)%outlineDirs.length];
+      const ra = gridRadiusAtDirLocal(da) * lift;
+      const rb = gridRadiusAtDirLocal(db) * lift;
+      tris.push(center.x,center.y,center.z, da.x*ra,da.y*ra,da.z*ra, db.x*rb,db.y*rb,db.z*rb);
+    }
+    const fg = new THREE.BufferGeometry();
+    fg.setAttribute('position', new THREE.Float32BufferAttribute(tris, 3));
+    fg.computeVertexNormals();
+    const fm = new THREE.MeshBasicMaterial({ color: P.gridSelColor.getHex(), transparent:true, opacity: P.gridFillA, depthWrite:false, depthTest:false, side: THREE.DoubleSide });
+    const selFill = new THREE.Mesh(fg, fm);
+    selFill.frustumCulled = false;
+    gridGroup.add(selFill);
+    gridState.selFill = selFill;
+  }
+
+  function findNearestCellByDir(dirUnit, cellCenters){
+    let best = -1, bestDot = -1e9;
+    const dx = dirUnit.x, dy = dirUnit.y, dz = dirUnit.z;
+    for (let i=0; i<cellCenters.length; i+=3){
+      const dot = dx*cellCenters[i] + dy*cellCenters[i+1] + dz*cellCenters[i+2];
+      if (dot > bestDot){ bestDot = dot; best = i/3; }
+    }
+    return best;
+  }
+
+  const gridRay = new THREE.Raycaster();
+  function pickTileAtClient(clientX, clientY){
+    if (!P.gridOn || !gridState.topo) return;
+    const rect = renderer.domElement.getBoundingClientRect();
+    const mx = ((clientX - rect.left) / rect.width) * 2 - 1;
+    const my = -((clientY - rect.top) / rect.height) * 2 + 1;
+
+    gridRay.setFromCamera({x:mx, y:my}, camera);
+    const dirW = raySphereDir(gridRay.ray.origin.clone(), gridRay.ray.direction.clone());
+    if (!dirW) return;
+
+    _invQ.copy(planet.quaternion).invert();
+    const dirL = dirW.clone().applyQuaternion(_invQ).normalize();
+
+    gridState.selected = findNearestCellByDir(dirL, gridState.topo.cellCenters);
+    gridState.dirty = true; // rebuild selection
+    rebuildGrid(); // fast enough; ensures selection updates immediately
+    return gridState.selected;
+  }
+
+
+  
+
+// ---------- Tile Lock ----------
+// Map-centric, geosync orbit around the selected hex tile.
+//
+// Design intent:
+//  - Two main viewpoints should be easy and continuous:
+//      (1) Top-down hex map
+//      (2) Near-lateral / horizon-skim (without clipping into terrain)
+//  - Only multitouch or standard 3-button mouse needed (OrbitControls gestures).
+//  - While locked, the tile stays centered even as the planet rotates.
+//  - Orbit should feel local to the tile (tile-normal is the orbit "up").
+//
+// UX:
+//  - Click/tap selects a tile (when Grid is enabled).
+//  - Double-click/double-tap toggles lock:
+//      • unlocked -> lock to selected tile
+//      • locked on same tile -> unlock
+//      • locked on different tile -> retarget (no jump)
+
+
+// ---------------------------------------------------------------------------
+// Tile Lock (simple): geosync + target lock, no special PTZ constraints.
+//  - Click/tap selects a tile (when Grid is enabled).
+//  - Double-click/double-tap toggles lock:
+//      • unlocked -> lock to selected tile
+//      • locked on same tile -> unlock
+//      • locked on different tile -> retarget (no jump)
+//
+// Lock behavior:
+//  - OrbitControls remain "normal" (no special min/max polar/azimuth changes).
+//  - While locked, we keep OrbitControls.target glued to the tile, and we
+//    geosync-rotate camera+target with the planet's rotation each frame.
+//  - Pan is disabled during lock so the target can't be lost.
+// ---------------------------------------------------------------------------
+
+const tileLock = {
+  active: false,
+  tile: -1,
+
+  prevTarget: new THREE.Vector3(),
+  prevEnablePan: true,
+  prevMinDistance: 1.0,
+  prevZoomSpeed: 1.0,
+  lastPlanetQ: new THREE.Quaternion(),
+};
+
+const _tlDirL   = new THREE.Vector3();
+const _tlPosW   = new THREE.Vector3();
+const _tlUpW    = new THREE.Vector3();
+const _tlDQ     = new THREE.Quaternion();
+const _tlInvPrev= new THREE.Quaternion();
+const _tlDelta  = new THREE.Vector3();
+
+function getTileDirLocal(i, out){
+  const topo = gridState.topo;
+  if (!topo || i < 0) return null;
+  const j = (i|0) * 3;
+  out.set(topo.cellCenters[j], topo.cellCenters[j+1], topo.cellCenters[j+2]).normalize();
+  return out;
+}
+
+function getTileWorldPosAndUp(i, posOut, upOut){
+  if (!getTileDirLocal(i, _tlDirL)) return null;
+
+  // Surface radius in planet-local space (CPU mirror of shader height).
+  const r = surfaceRadiusAtDirLocal(_tlDirL);
+
+  // World up (normal) at tile.
+  upOut.copy(_tlDirL).applyQuaternion(planet.quaternion).normalize();
+
+  // World position at tile surface.
+  posOut.copy(_tlDirL).multiplyScalar(r).applyQuaternion(planet.quaternion);
+  return posOut;
+}
+
+// Retarget without camera "teleport": shift camera by the same delta as target.
+function retargetTileLock(i){
+  if (!P.gridOn || !gridState.topo || i < 0) return;
+  const ii = (i|0);
+
+  const tW = getTileWorldPosAndUp(ii, _tlPosW, _tlUpW);
+  if (!tW) return;
+
+  // Move camera along with the target so the view posture stays stable.
+  _tlDelta.copy(tW).sub(orbit.target);
+  camera.position.add(_tlDelta);
+  orbit.target.copy(tW);
+
+  tileLock.tile = ii;
+  tileLock.lastPlanetQ.copy(planet.quaternion);
+
+  orbit.update();
+}
+
+function enableTileLock(i){
+  if (!P.gridOn || !gridState.topo || i < 0) return;
+
+  tileLock.active = true;
+  tileLock.prevTarget.copy(orbit.target);
+  tileLock.prevEnablePan = orbit.enablePan;
+  tileLock.prevMinDistance = orbit.minDistance;
+  tileLock.prevZoomSpeed = orbit.zoomSpeed;
+
+  // Prevent losing target via panning.
+  orbit.enablePan = false;
+
+  // Deep zoom while locked (cap mode friendly). Collision clamps keep us safe.
+  orbit.minDistance = 0.02;
+  orbit.zoomSpeed = Math.max(orbit.zoomSpeed, 1.2);
+
+  tileLock.lastPlanetQ.copy(planet.quaternion);
+  retargetTileLock(i);
+}
+
+function disableTileLock(){
+  if (!tileLock.active) return;
+
+  // Restore pan + restore previous target without a jump (shift camera with target).
+  orbit.enablePan = tileLock.prevEnablePan;
+  orbit.minDistance = tileLock.prevMinDistance;
+  orbit.zoomSpeed = tileLock.prevZoomSpeed;
+
+  _tlDelta.copy(tileLock.prevTarget).sub(orbit.target);
+  camera.position.add(_tlDelta);
+  orbit.target.copy(tileLock.prevTarget);
+
+  tileLock.active = false;
+  tileLock.tile = -1;
+
+  orbit.update();
+}
+
+function toggleOrRetargetLock(i){
+  if (i === undefined || i === null || i < 0) return;
+  const ii = (i|0);
+
+  if (tileLock.active){
+    if (ii === tileLock.tile) disableTileLock();
+    else retargetTileLock(ii);
+  } else {
+    enableTileLock(ii);
+  }
+}
+
+function updateTileLock(){
+  if (!tileLock.active || tileLock.tile < 0 || !gridState.topo) return;
+
+  // Geosync: rotate camera+target by the planet's spin since last frame.
+  _tlInvPrev.copy(tileLock.lastPlanetQ).invert();
+  _tlDQ.copy(planet.quaternion).multiply(_tlInvPrev);
+
+  camera.position.applyQuaternion(_tlDQ);
+  orbit.target.applyQuaternion(_tlDQ);
+
+  // Snap target to the exact tile world position to avoid drift.
+  const tW = getTileWorldPosAndUp(tileLock.tile, _tlPosW, _tlUpW);
+  if (!tW) return;
+
+  _tlDelta.copy(tW).sub(orbit.target);
+  camera.position.add(_tlDelta);
+  orbit.target.copy(tW);
+
+  orbit.update();
+
+  // Safety: allow low/lateral views but don't dig into terrain near the tile.
+  enforceAboveTileTangent(tW, _tlUpW);
+
+  tileLock.lastPlanetQ.copy(planet.quaternion);
+}
+
+
+
+function tileInfoString(){
+    if (!P.gridOn || !gridState.topo || gridState.selected < 0) return '';
+    const topo = gridState.topo;
+    const i = gridState.selected|0;
+    const x = topo.cellCenters[i*3+0], y = topo.cellCenters[i*3+1], z = topo.cellCenters[i*3+2];
+    const dir = new THREE.Vector3(x,y,z).normalize();
+    const lat = Math.asin(dir.y) * 180/Math.PI;
+    const lon = Math.atan2(dir.z, dir.x) * 180/Math.PI;
+    const deg = topo.cellDegree[i] || 0;
+    const isPent = (deg === 5);
+
+    // Terrain classification: ocean/land + rough climate cue
+    const raw = heightAtDirLocal(dir);
+    const above = raw - (P.seaLevel || 0.0);
+    const land = (above > 0.00001);
+    const lat01 = Math.abs(dir.y);
+    const cold = lat01 > 0.72;
+    let biome = land ? 'Land' : 'Ocean';
+    if (!land) biome = cold ? 'Ice Sea' : 'Sea';
+    else if (cold) biome = 'Tundra';
+    else if (above > Math.max(0.03, P.heightAmp*0.55)) biome = 'Alpine';
+    else {
+      const t = P.temperature;
+      biome = (t > 0.62) ? 'Warm' : (t < 0.38 ? 'Cool' : 'Temperate');
+    }
+
+    return `grid: ${P.gridOn?'on':'off'}  detail ${topo.detail}  cell ${i}  (${isPent?'pent':'hex'} n=${deg})
+tile: lat ${lat.toFixed(2)}°  lon ${lon.toFixed(2)}°  elev ${above.toFixed(4)}  biome ${biome}`;
+  }
+
+  // Tap-to-select tile (works on mouse + touch) when grid is enabled.
+  const _tap = { down:false, x:0, y:0, t:0, lastT:0, lastX:0, lastY:0 };
+  renderer.domElement.addEventListener('pointerdown', (e)=>{
+    if (e.button !== 0) return;
+    if (e.target !== renderer.domElement) return;
+    _tap.down = true;
+    _tap.x = e.clientX; _tap.y = e.clientY;
+    _tap.t = performance.now();
+  }, { passive:true });
+  renderer.domElement.addEventListener('pointerup', (e)=>{
+    if (!_tap.down) return;
+    _tap.down = false;
+    if (e.target !== renderer.domElement) return;
+    const dt = performance.now() - _tap.t;
+    const moved = Math.hypot(e.clientX - _tap.x, e.clientY - _tap.y);
+    if (dt < 320 && moved < 6){
+      // Click/tap selects a tile. Double-click/double-tap toggles tile lock.
+      const nowT = performance.now();
+      const isDouble = (nowT - _tap.lastT < 340) && (Math.hypot(e.clientX - _tap.lastX, e.clientY - _tap.lastY) < 18);
+      _tap.lastT = nowT; _tap.lastX = e.clientX; _tap.lastY = e.clientY;
+
+      const sel = pickTileAtClient(e.clientX, e.clientY);
+
+      if (isDouble && sel !== undefined && sel !== null){
+        toggleOrRetargetLock(sel);
+      }
+    }
+  }, { passive:true });
+
+
 
   // ---------- Multithreaded sphere geometry builder ----------
   // We build very high segment spheres off the main thread to avoid long hitches when you zoom in.
@@ -1390,16 +2497,18 @@ n = 0.5*n + 0.5;
     }
   }
   function updateSegSelects(){
-    if (!EL.midSegs || !EL.highSegs) return;
+    if (!EL.midSegs || !EL.highSegs || !EL.capSegs) return;
     if (P.enableExtreme){
       for (const v of SEG_EXTREME){
         ensureSegOption(EL.midSegs, v);
         ensureSegOption(EL.highSegs, v);
+        ensureSegOption(EL.capSegs, v);
       }
     } else {
       for (const v of SEG_EXTREME){
         removeSegOption(EL.midSegs, v);
         removeSegOption(EL.highSegs, v);
+        removeSegOption(EL.capSegs, v);
       }
     }
   }
@@ -1523,6 +2632,122 @@ n = 0.5*n + 0.5;
     sphereWorker.postMessage({ id, segs: s });
     return promise;
   }
+
+  // ---------- Multithreaded cap-grid geometry builder (onscreen patch) ----------
+  // Builds a unit square grid (positions in [-1,1]) used by the cap vertex shader to project onto the sphere.
+  const capCache = new Map(); // seg -> { geom, lastUsed, promise }
+  let capReqId = 900000;
+  const capReq = new Map();
+
+  const capWorkerCode = `
+    self.onmessage = (e)=>{
+      const { id, segs } = e.data;
+      const w = Math.max(8, segs|0);
+      const h = w;
+      const vertCount = (w+1)*(h+1);
+      const positions = new Float32Array(vertCount*3);
+      let p = 0;
+      for (let y=0; y<=h; y++){
+        const fy = (y / h) * 2.0 - 1.0;
+        for (let x=0; x<=w; x++){
+          const fx = (x / w) * 2.0 - 1.0;
+          positions[p++] = fx;
+          positions[p++] = fy;
+          positions[p++] = 0.0;
+        }
+      }
+      const indices = new Uint32Array(w*h*6);
+      let ii = 0;
+      for (let y=0; y<h; y++){
+        for (let x=0; x<w; x++){
+          const a = y*(w+1)+x;
+          const b = a+1;
+          const c = (y+1)*(w+1)+x;
+          const d = c+1;
+          indices[ii++] = a; indices[ii++] = b; indices[ii++] = c;
+          indices[ii++] = b; indices[ii++] = d; indices[ii++] = c;
+        }
+      }
+      self.postMessage({ id, segs:w, positions: positions.buffer, indices: indices.buffer }, [positions.buffer, indices.buffer]);
+    };
+  `;
+  const capWorker = new Worker(URL.createObjectURL(new Blob([capWorkerCode], { type: 'application/javascript' })));
+
+  capWorker.onmessage = (e)=>{
+    const { id, segs, positions, indices } = e.data;
+    const req = capReq.get(id);
+    if (!req) return;
+    capReq.delete(id);
+    geomPending.count = Math.max(0, geomPending.count - 1);
+
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
+    g.setIndex(new THREE.BufferAttribute(new Uint32Array(indices), 1));
+    g.computeBoundingSphere();
+
+    const entry = capCache.get(segs);
+    if (entry){
+      entry.geom = g;
+      entry.lastUsed = performance.now();
+      entry.promise = null;
+    } else {
+      capCache.set(segs, { geom: g, lastUsed: performance.now(), promise: null });
+    }
+    req.resolve(g);
+  };
+
+  function requestCapGeom(segs){
+    let s = segs|0;
+    if (s >= 4096 && !confirmHugeSphere(s)) s = 3072;
+    const existing = capCache.get(s);
+    if (existing && existing.geom){
+      existing.lastUsed = performance.now();
+      return Promise.resolve(existing.geom);
+    }
+    if (existing && existing.promise) return existing.promise;
+
+    geomPending.count++;
+    const id = capReqId++;
+    const promise = new Promise((resolve, reject)=>{
+      capReq.set(id, { segs:s, resolve, reject });
+    });
+    capCache.set(s, { geom: null, lastUsed: performance.now(), promise });
+    capWorker.postMessage({ id, segs: s });
+    return promise;
+  }
+
+  function setMeshDesiredCapSeg(mesh, seg){
+    if (!mesh) return;
+    const desired = seg|0;
+    if (mesh.userData.desiredSeg === desired && mesh.userData.seg === desired) return;
+    if ((mesh.userData.waitingForSeg|0) === desired && mesh.userData.waitingPromise){
+      mesh.userData.desiredSeg = desired;
+      return;
+    }
+    mesh.userData.desiredSeg = desired;
+
+    const e = capCache.get(desired);
+    if (e && e.geom){
+      mesh.geometry = e.geom;
+      mesh.userData.seg = desired;
+      mesh.userData.waitingForSeg = 0;
+      mesh.userData.waitingPromise = null;
+      return;
+    }
+
+    const p = requestCapGeom(desired);
+    mesh.userData.waitingForSeg = desired;
+    mesh.userData.waitingPromise = p;
+    p.then((g)=>{
+      if ((mesh.userData.desiredSeg|0) === desired){
+        mesh.geometry = g;
+        mesh.userData.seg = desired;
+        mesh.userData.waitingForSeg = 0;
+        mesh.userData.waitingPromise = null;
+      }
+    }).catch(()=>{});
+  }
+
 
   function acquireGeom(segs){
     const e = geomCache.get(segs);
@@ -1694,176 +2919,25 @@ n = 0.5*n + 0.5;
     scene.add(skyMesh);
   }
 
-  // ---------- Scatter meshes (instanced) ----------
-  let rocksMesh = null;
-  let plantsMesh = null;
-
-  function makeScatterMeshes(){
-    // Rocks
-    const rockGeom = new THREE.IcosahedronGeometry(0.004, 0);
-    const rockMat = new THREE.MeshStandardMaterial({
-      roughness: 0.95,
-      metalness: 0.0,
-      vertexColors: true,
-      color: 0xffffff
-    });
-    rocksMesh = new THREE.InstancedMesh(rockGeom, rockMat, 2200);
-    rocksMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    rocksMesh.renderOrder = 3;
-    scatterGroup.add(rocksMesh);
-
-    // Plants (simple “billboard” cones)
-    const plantGeom = new THREE.ConeGeometry(0.003, 0.018, 5, 1);
-    const plantMat = new THREE.MeshStandardMaterial({
-      roughness: 0.92,
-      metalness: 0.0,
-      vertexColors: true,
-      color: 0xffffff
-    });
-    plantsMesh = new THREE.InstancedMesh(plantGeom, plantMat, 2600);
-    plantsMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    plantsMesh.renderOrder = 3;
-    scatterGroup.add(plantsMesh);
-  }
-  makeScatterMeshes();
-
-  // Scatter state + rebuild
-  const scatterState = {
-    lastAnchor: new THREE.Vector3(0,1,0),
-    dirty: true
-  };
-
-  // temp axis used for instance orientation
-  const _yAxis = new THREE.Vector3(0,1,0);
-
-  function hash01(x){
-    return (Math.sin(x)*43758.5453123) % 1;
-  }
-  function rngFromDir(dir){
-    // deterministic-ish RNG seed from a direction
-    const s = dir.x*127.1 + dir.y*311.7 + dir.z*74.7;
-    let v = Math.abs(Math.sin(s)*43758.5453);
-    return ()=>{ v = (v*16807.0) % 2147483647.0; return (v/2147483647.0); };
-  }
-
-  function rebuildScatter(){
-    if (!P.scatterOn) { scatterGroup.visible = false; return; }
-    if (!rocksMesh || !plantsMesh) return;
-
-    const anchor = photo.anchorDirLocal.clone().normalize();
-    const { east, north } = makeLocalBasis(anchor);
-
-    const rng = rngFromDir(anchor);
-    const m = new THREE.Matrix4();
-    const q = new THREE.Quaternion();
-    const s = new THREE.Vector3();
-    const pos = new THREE.Vector3();
-    const c = new THREE.Color();
-
-    const rCountMax = rocksMesh.count;
-    const pCountMax = plantsMesh.count;
-
-    let rCount = 0;
-    let pCount = 0;
-
-    // place instances in a disc around anchor (planet-local)
-    const patch = P.scatterRad;
-    const area = Math.PI*patch*patch;
-    const density = P.scatterDen;
-
-    const rockTarget = Math.floor(900 * density);
-    const plantTarget = Math.floor(1400 * density);
-
-    function sampleDirInDisc(){
-      // uniform disc sampling (in tangent plane), then project to sphere dir
-      const a = rng()*Math.PI*2;
-      const rr = patch * Math.sqrt(rng());
-      const dx = Math.cos(a)*rr;
-      const dy = Math.sin(a)*rr;
-      const d = anchor.clone()
-        .addScaledVector(east, dx)
-        .addScaledVector(north, dy)
-        .normalize();
-      return d;
-    }
-
-    for (let i=0;i<rockTarget && rCount<rCountMax;i++){
-      const d = sampleDirInDisc();
-      // Only above sea
-      const h = heightAtDirLocal(d);
-      if (h <= 0.0002) continue;
-
-      const r = 1.0 + h;
-      pos.copy(d).multiplyScalar(r + 0.0006);
-
-      // orientation: align up to normal, random yaw
-      q.setFromUnitVectors(_yAxis, d);
-      q.multiply(new THREE.Quaternion().setFromAxisAngle(d, (rng()*2-1)*Math.PI));
-
-      const scale = 0.55 + 1.65*rng();
-      s.setScalar(scale);
-
-      m.compose(pos, q, s);
-      rocksMesh.setMatrixAt(rCount, m);
-
-      const g = 0.35 + 0.35*rng();
-      c.setRGB(g*0.95, g*0.92, g*0.88);
-      rocksMesh.setColorAt(rCount, c);
-
-      rCount++;
-    }
-
-    for (let i=0;i<plantTarget && pCount<pCountMax;i++){
-      const d = sampleDirInDisc();
-      const h = heightAtDirLocal(d);
-      // plants prefer low-mid elevation
-      if (h <= 0.001 || h >= 0.055) continue;
-
-      const r = 1.0 + h;
-      pos.copy(d).multiplyScalar(r + 0.0002);
-
-      q.setFromUnitVectors(_yAxis, d);
-      q.multiply(new THREE.Quaternion().setFromAxisAngle(d, (rng()*2-1)*Math.PI));
-
-      const scale = 0.55 + 1.95*rng();
-      s.set(scale, scale*(0.9+0.3*rng()), scale);
-
-      m.compose(pos, q, s);
-      plantsMesh.setMatrixAt(pCount, m);
-
-      // green shifts with temperature
-      const temp = P.temperature;
-      const g = 0.22 + 0.45*rng();
-      c.setRGB(0.08 + 0.10*temp, g*(0.75+0.35*temp), 0.08 + 0.10*(1-temp));
-      plantsMesh.setColorAt(pCount, c);
-
-      pCount++;
-    }
-
-    rocksMesh.count = rCount;
-    plantsMesh.count = pCount;
-    rocksMesh.instanceMatrix.needsUpdate = true;
-    plantsMesh.instanceMatrix.needsUpdate = true;
-    if (rocksMesh.instanceColor) rocksMesh.instanceColor.needsUpdate = true;
-    if (plantsMesh.instanceColor) plantsMesh.instanceColor.needsUpdate = true;
-
-    scatterState.lastAnchor.copy(anchor);
-    scatterState.dirty = false;
-
-    scatterGroup.visible = true;
-  }
-
   // ---------- Planet build ----------
   function disposeMesh(m){
     if (!m) return;
 
-    // Release cached sphere LOD geometries safely (they may be shared by multiple meshes).
+    // Release cached LOD geometries safely (they may be shared).
     const seg = (m.userData && m.userData.seg) ? (m.userData.seg|0) : 0;
-    if (seg && geomCache.has(seg)){
+
+    // Cap geometries are cached separately; don't dispose them here.
+    const isCap = !!(m.userData && m.userData.isCap);
+    if (isCap){
+      // no-op for geometry (cached)
+    } else     {
+      if (seg && geomCache.has(seg)){
       releaseGeom(seg);
     } else if (m.geometry){
       try{ m.geometry.dispose(); } catch {}
     }
+    }
+
 
     if (m.material){
       try{ m.material.dispose(); } catch {}
@@ -1875,6 +2949,7 @@ n = 0.5*n + 0.5;
     if (surfaceFar)  { planet.remove(surfaceFar);  disposeMesh(surfaceFar);  surfaceFar = null; }
     if (surfaceMid)  { planet.remove(surfaceMid);  disposeMesh(surfaceMid);  surfaceMid = null; }
     if (surfaceHigh) { planet.remove(surfaceHigh); disposeMesh(surfaceHigh); surfaceHigh = null; }
+    if (surfaceCap) { planet.remove(surfaceCap); disposeMesh(surfaceCap); surfaceCap = null; }
     if (cloudsMesh)  { planet.remove(cloudsMesh);  disposeMesh(cloudsMesh); cloudsMesh = null; }
     if (atmoMesh)    { planet.remove(atmoMesh);    disposeMesh(atmoMesh);   atmoMesh = null; }
 
@@ -1929,6 +3004,25 @@ n = 0.5*n + 0.5;
     surfaceHigh.userData.desiredSeg = 0;
     planet.add(surfaceHigh);
 
+    // Onscreen cap mesh (used when screenFrac is very high; renders only the visible patch at much higher effective resolution)
+    const capMat = new THREE.ShaderMaterial({
+      vertexShader: CAP_PLANET_VS,
+      fragmentShader: BASE_PLANET_FS,
+      uniforms: { ...UCommon, ...UCap },
+      extensions: { derivatives: true },
+    });
+    capMat.wireframe = !!P.wire;
+
+    const gCap0 = new THREE.PlaneGeometry(2.0, 2.0, 16, 16);
+    surfaceCap = new THREE.Mesh(gCap0, capMat);
+    surfaceCap.renderOrder = 0;
+    surfaceCap.visible = false;
+    surfaceCap.frustumCulled = false;
+    surfaceCap.userData.isCap = true;
+    surfaceCap.userData.seg = 0;
+    surfaceCap.userData.desiredSeg = 0;
+    planet.add(surfaceCap);
+
     // LOD geometries are requested/swapped in the animation loop based on zoom.
 
     // Clouds
@@ -1980,11 +3074,7 @@ n = 0.5*n + 0.5;
     atmoMesh = new THREE.Mesh(atmoGeom, atmoMat);
     atmoMesh.renderOrder = 2;
     planet.add(atmoMesh);
-
-    // Keep scatterGroup at the end (so its local transforms stay valid)
-    planet.add(scatterGroup);
-
-    scatterState.dirty = true;
+    updateAtmoScale();
   }
 
   makeSky();
@@ -2051,25 +3141,10 @@ n = 0.5*n + 0.5;
     return surfaceHigh;
   }
 
-  // ---------- Photo rig ----------
-  const Mode = { ORBIT: 'orbit', PHOTO: 'photo' };
-  let mode = Mode.ORBIT;
-
-  const photo = {
-    // Stored in planet-local space so it co-rotates with the planet.
-    anchorDirLocal: new THREE.Vector3(0.12, 0.18, 0.975).normalize(),
-    yaw: 0.0,
-    pitch: -0.10,
-    roll: 0.0,
-
-    dragging: false,
-    lastX: 0,
-    lastY: 0,
-
-    moveSpeed: 0.35,   // radians/sec at base
-    altMin: 0.002,
-    altMax: 0.120,
-  };
+  // ---------- View anchor (no Photo Mode) ----------
+  // We maintain an anchor point under the center of the view, stored in planet-local space.
+  // It's used for scatter placement, anchor marker, and HUD lat/lon.
+  const anchorDirLocal = new THREE.Vector3(0.12, 0.18, 0.975).normalize();
 
   function makeLocalBasis(upLocal){
     const ref = (Math.abs(upLocal.y) < 0.95) ? new THREE.Vector3(0,1,0) : new THREE.Vector3(1,0,0);
@@ -2078,215 +3153,14 @@ n = 0.5*n + 0.5;
     return { east, north };
   }
 
-  function getAnchorWorldDir(){
-    return photo.anchorDirLocal.clone().applyQuaternion(planet.quaternion).normalize();
-  }
-
-  function updateCameraPhoto(){
-    const upLocal = photo.anchorDirLocal.clone().normalize();
-    const { east: eastLocal, north: northLocal } = makeLocalBasis(upLocal);
-
-    // Convert basis to world (planet rotation)
-    const upW = upLocal.clone().applyQuaternion(planet.quaternion).normalize();
-    const eastW = eastLocal.clone().applyQuaternion(planet.quaternion).normalize();
-    const northW = northLocal.clone().applyQuaternion(planet.quaternion).normalize();
-
-    // Apply yaw/pitch relative to local tangent frame
-    const yaw = photo.yaw;
-    const pitch = THREE.MathUtils.clamp(photo.pitch, -1.35, 1.10);
-    const roll = THREE.MathUtils.clamp(photo.roll, -Math.PI, Math.PI);
-
-    let fwd = northW.clone().multiplyScalar(Math.cos(yaw)).add(eastW.clone().multiplyScalar(Math.sin(yaw))).normalize();
-
-    // Pitch around camera-right
-    let right = new THREE.Vector3().crossVectors(fwd, upW).normalize();
-    fwd = fwd.clone().applyAxisAngle(right, pitch).normalize();
-
-    // Recompute right/up from forward
-    right = new THREE.Vector3().crossVectors(fwd, upW).normalize();
-    let upCam = new THREE.Vector3().crossVectors(right, fwd).normalize();
-
-    // Roll about forward
-    right.applyAxisAngle(fwd, roll);
-    upCam.applyAxisAngle(fwd, roll);
-
-    // Ground-follow altitude
-    const groundH = heightAtDirLocal(upLocal);
-    const r = 1.0 + Math.max(0.0, groundH);
-    const posW = upW.clone().multiplyScalar(r + P.alt);
-
-    camera.position.copy(posW);
-
-    // Build camera orientation matrix: X=right, Y=up, Z=-forward
-    const m = new THREE.Matrix4().makeBasis(right, upCam, fwd.clone().negate());
-    camera.quaternion.setFromRotationMatrix(m);
-
-    // Drive sky “up”
-    if (skyMesh) skyMesh.material.uniforms.uUpDir.value.copy(upCam);
-
-    // Anchor marker
-    anchorMarker.visible = true;
-    const markerPos = upW.clone().multiplyScalar(r + 0.0009);
-    anchorMarker.position.copy(markerPos);
-    anchorMarker.lookAt(camera.position);
-    setConstantPixelSize(anchorMarker, markerPos, 26, 0.08);
-
-    // Scatter rebuild threshold
-    if (P.scatterOn){
-      const dot = scatterState.lastAnchor.dot(photo.anchorDirLocal);
-      const needs = scatterState.dirty || (dot < Math.cos(Math.max(0.004, P.scatterRad*0.18)));
-      if (needs){
-        scatterState.dirty = true;
-        rebuildScatter();
-      }
-    }
-  }
-
-  // ---------- Mode switching ----------
-  function setMode(newMode){
-    mode = newMode;
-    const isPhoto = (mode === Mode.PHOTO);
-
-    orbit.enabled = !isPhoto;
-
-    if (isPhoto){
-      camera.near = 0.001;
-      camera.far = 80;
-      camera.fov = P.fov;
-      camera.updateProjectionMatrix();
-      orbit.target.set(0,0,0);
-
-      updateCameraPhoto();
-      document.getElementById('btnMode').textContent = 'Exit Photo Mode (P)';
-    } else {
-      anchorMarker.visible = false;
-      scatterGroup.visible = false;
-
-      camera.near = 0.01;
-      camera.far = 80;
-      camera.fov = P.fov;
-      camera.updateProjectionMatrix();
-
-      const d = camera.position.length();
-      if (d < 1.2) camera.position.set(0, 0.15, 2.8);
-
-      document.getElementById('btnMode').textContent = 'Enter Photo Mode (P)';
-    }
-  }
-
-  // ---------- Input (photo mode) ----------
-  renderer.domElement.addEventListener('pointerdown', (e)=>{
-    if (mode !== Mode.PHOTO) return;
-    if (e.button !== 0) return;
-    photo.dragging = true;
-    photo.lastX = e.clientX;
-    photo.lastY = e.clientY;
-    renderer.domElement.setPointerCapture(e.pointerId);
-  });
-  renderer.domElement.addEventListener('pointermove', (e)=>{
-    if (mode !== Mode.PHOTO) return;
-    if (!photo.dragging) return;
-    const dx = e.clientX - photo.lastX;
-    const dy = e.clientY - photo.lastY;
-    photo.lastX = e.clientX;
-    photo.lastY = e.clientY;
-
-    photo.yaw   -= dx * 0.0048;
-    photo.pitch -= dy * 0.0046;
-  });
-  renderer.domElement.addEventListener('pointerup', ()=>{ photo.dragging = false; });
-  renderer.domElement.addEventListener('pointercancel', ()=>{ photo.dragging = false; });
-
-  renderer.domElement.addEventListener('wheel', (e)=>{
-    if (mode !== Mode.PHOTO) return;
-    e.preventDefault();
-    const s = (e.deltaY > 0) ? 1.10 : 0.90;
-    P.alt = THREE.MathUtils.clamp(P.alt * s, photo.altMin, photo.altMax);
-    syncUI();
-  }, { passive:false });
-
-  // Double-click: set camera location to cursor (planet-local)
-  const ray = new THREE.Raycaster();
-  const mouse = new THREE.Vector2();
-  renderer.domElement.addEventListener('dblclick', (e)=>{
-    if (mode !== Mode.PHOTO) return;
-
-    const surf = getActiveSurface();
-    if (!surf) return;
-
-    const rect = renderer.domElement.getBoundingClientRect();
-    mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-
-    ray.setFromCamera(mouse, camera);
-    const hits = ray.intersectObject(surf, false);
-    if (!hits.length) return;
-
-    const pLocal = planet.worldToLocal(hits[0].point.clone()).normalize();
-    photo.anchorDirLocal.copy(pLocal);
-
-    photo.pitch = -0.10;
-    scatterState.dirty = true;
-    updateCameraPhoto();
-  });
-
-  // Key movement on the sphere
-  const keys = new Set();
-  window.addEventListener('keydown', (e)=>{
-    if (e.code === 'KeyP'){
-      setMode(mode === Mode.PHOTO ? Mode.ORBIT : Mode.PHOTO);
-      return;
-    }
-    if (e.code === 'Space'){
-      thirds.style.display = (thirds.style.display === 'none' ? 'block' : 'none');
-      return;
-    }
-    if (e.code === 'KeyH'){
-      toggleHudHidden();
-      return;
-    }
-    keys.add(e.code);
-  });
-  window.addEventListener('keyup', (e)=>keys.delete(e.code));
-
-  function moveAnchorOnSphere(dt){
-    const up = photo.anchorDirLocal.clone().normalize();
-    const { east, north } = makeLocalBasis(up);
-
-    // Movement direction uses yaw
-    const fwd = north.clone().multiplyScalar(Math.cos(photo.yaw)).add(east.clone().multiplyScalar(Math.sin(photo.yaw))).normalize();
-    const right = east.clone().multiplyScalar(Math.cos(photo.yaw)).add(north.clone().multiplyScalar(-Math.sin(photo.yaw))).normalize();
-
-    let f = 0, r = 0;
-    if (keys.has('KeyW')) f += 1;
-    if (keys.has('KeyS')) f -= 1;
-    if (keys.has('KeyD')) r += 1;
-    if (keys.has('KeyA')) r -= 1;
-
-    const speed = photo.moveSpeed * (keys.has('ShiftLeft') || keys.has('ShiftRight') ? 2.4 : 1.0);
-    const dAng = speed * dt;
-
-    if (f !== 0){
-      const dir = (f > 0) ? fwd : fwd.clone().multiplyScalar(-1);
-      const axis = new THREE.Vector3().crossVectors(dir, up).normalize();
-      photo.anchorDirLocal.applyAxisAngle(axis, dAng).normalize();
-    }
-    if (r !== 0){
-      const dir = (r > 0) ? right : right.clone().multiplyScalar(-1);
-      const axis = new THREE.Vector3().crossVectors(dir, up).normalize();
-      photo.anchorDirLocal.applyAxisAngle(axis, dAng).normalize();
-    }
-
-    if (keys.has('KeyQ')) photo.roll += 0.9 * dt;
-    if (keys.has('KeyE')) photo.roll -= 0.9 * dt;
-  }
 
   // ---------- UI wiring ----------
   const EL = {
     lodMode: document.getElementById('lodMode'),
     presetSel: document.getElementById('presetSel'),
     lod01: document.getElementById('lod01'),
-    lod12: document.getElementById('lod12'),    farSegs: document.getElementById('farSegs'),
+    lod12: document.getElementById('lod12'),
+    farSegs: document.getElementById('farSegs'),
     midSegs: document.getElementById('midSegs'),
     highSegs: document.getElementById('highSegs'),
     wire: document.getElementById('wire'),
@@ -2298,6 +3172,13 @@ n = 0.5*n + 0.5;
     resScale: document.getElementById('resScale'),
     prCap: document.getElementById('prCap'),
     lodPx: document.getElementById('lodPx'),
+
+    capOn: document.getElementById('capOn'),
+    capStart: document.getElementById('capStart'),
+    capMul: document.getElementById('capMul'),
+    capSegs: document.getElementById('capSegs'),
+    capSegsMode: document.getElementById('capSegsMode'),
+    capPad: document.getElementById('capPad'),
 
     height: document.getElementById('height'),
     noise:  document.getElementById('noise'),
@@ -2317,14 +3198,39 @@ n = 0.5*n + 0.5;
     cloudSoft:  document.getElementById('cloudSoft'),
     cloudSpeed: document.getElementById('cloudSpeed'),
     cloudSh:    document.getElementById('cloudSh'),
+// Grid
+    gridOn: document.getElementById('gridOn'),
+    gridDetail: document.getElementById('gridDetail'),
+    gridAlpha: document.getElementById('gridAlpha'),
+    gridEdgeOff: document.getElementById('gridEdgeOff'),
+    gridConform: document.getElementById('gridConform'),
+    gridArc: document.getElementById('gridArc'),
+    gridPent: document.getElementById('gridPent'),
 
-    scatterOn:  document.getElementById('scatterOn'),
-    scatterDen: document.getElementById('scatterDen'),
-    scatterRad: document.getElementById('scatterRad'),
+    gridDots: document.getElementById('gridDots'),
+    gridDotMode: document.getElementById('gridDotMode'),
+    gridDotStride: document.getElementById('gridDotStride'),
+    gridDotColor: document.getElementById('gridDotColor'),
+    gridDotOpacity: document.getElementById('gridDotOpacity'),
+    gridDotSize: document.getElementById('gridDotSize'),
+    btnGridRebuild: document.getElementById('btnGridRebuild'),
+    btnGridToggle: document.getElementById('btnGridToggle'),
+
+    gridThick: document.getElementById('gridThick'),
+    gridColor: document.getElementById('gridColor'),
+    gridSelThick: document.getElementById('gridSelThick'),
+    gridSelColor: document.getElementById('gridSelColor'),
+    gridFillA: document.getElementById('gridFillA'),
+    gridPentColor: document.getElementById('gridPentColor'),
+    gridPentSize: document.getElementById('gridPentSize'),
 
     fov: document.getElementById('fov'),
-    alt: document.getElementById('alt'),
   };
+
+  // Mirror cap resolution options into the Mode header dropdown
+  if (EL.capSegsMode && EL.capSegs){
+    EL.capSegsMode.innerHTML = EL.capSegs.innerHTML;
+  }
 
   function setVal(id, txt){
     const el = document.getElementById('v_' + id);
@@ -2357,12 +3263,32 @@ n = 0.5*n + 0.5;
     if (EL.prCap) EL.prCap.value = String(P.pixRatioCap);
     EL.lodPx.value = String(P.lodPx);
 
+    if (EL.capOn) EL.capOn.checked = !!P.capOn;
+    if (EL.capStart) EL.capStart.value = String(P.capStart);
+    if (EL.capMul) EL.capMul.value = String(P.capMul);
+    if (EL.capSegs) EL.capSegs.value = String(P.capSegs);
+    if (EL.capSegsMode) EL.capSegsMode.value = String(P.capSegs);
+    if (EL.capPad) EL.capPad.value = String(P.capPad);
+
     setVal('autoSegs', P.autoSegs ? 'on' : 'off');
     setVal('autoQuality', P.autoQuality ? 'on' : 'off');
     setVal('targetFPS', String(Math.round(P.targetFPS)));
     setVal('resScale', fmt2(P.resScale));
     setVal('prCap', fmt2(P.pixRatioCap));
     setVal('lodPx', fmt1(P.lodPx));
+
+    // Onscreen cap
+    if (EL.capOn) EL.capOn.checked = !!P.capOn;
+    if (EL.capStart) EL.capStart.value = String(P.capStart);
+    if (EL.capMul) EL.capMul.value = String(P.capMul);
+    if (EL.capSegs) EL.capSegs.value = String(P.capSegs);
+
+    setVal('capOn', P.capOn ? 'on' : 'off');
+    setVal('capStart', fmt2(P.capStart));
+    setVal('capMul', fmt2(P.capMul));
+    setVal('capSegs', String(P.capSegs));
+    setVal('capSegsMode', String(P.capSegs));
+    setVal('capPad', fmt2(P.capPad));
 
 
     // Terrain
@@ -2374,6 +3300,31 @@ n = 0.5*n + 0.5;
     setVal('noise',  P.noiseScale.toFixed(2));
     setVal('sea',    P.seaLevel.toFixed(3));
     setVal('temp',   P.temperature.toFixed(2));
+
+    // Grid
+    if (EL.gridOn) { EL.gridOn.checked = !!P.gridOn; setVal('gridOn', P.gridOn ? 'on' : 'off'); }
+    if (EL.gridDetail) { EL.gridDetail.value = String(P.gridDetail|0); setVal('gridDetail', String(P.gridDetail|0)); }
+    if (EL.gridAlpha) { EL.gridAlpha.value = String(P.gridAlpha); setVal('gridAlpha', fmt2(P.gridAlpha)); }
+    if (EL.gridEdgeOff) { EL.gridEdgeOff.value = String(P.gridEdgeOff); setVal('gridEdgeOff', P.gridEdgeOff.toFixed(4)); }
+    if (EL.gridConform) { EL.gridConform.checked = !!P.gridConform; setVal('gridConform', P.gridConform ? 'on' : 'off'); }
+    if (EL.gridArc) { EL.gridArc.checked = !!P.gridArc; setVal('gridArc', P.gridArc ? 'on' : 'off'); }
+    if (EL.gridPent) { EL.gridPent.checked = !!P.gridPent; setVal('gridPent', P.gridPent ? 'on' : 'off'); }
+
+    if (EL.gridThick) { EL.gridThick.value = String(P.gridThick); setVal('gridThick', fmt2(P.gridThick)); }
+    if (EL.gridColor) { EL.gridColor.value = '#' + P.gridColor.getHexString(); setVal('gridColor', '#' + P.gridColor.getHexString()); }
+    if (EL.gridSelThick) { EL.gridSelThick.value = String(P.gridSelThick); setVal('gridSelThick', fmt2(P.gridSelThick)); }
+    if (EL.gridSelColor) { EL.gridSelColor.value = '#' + P.gridSelColor.getHexString(); setVal('gridSelColor', '#' + P.gridSelColor.getHexString()); }
+    if (EL.gridFillA) { EL.gridFillA.value = String(P.gridFillA); setVal('gridFillA', fmt2(P.gridFillA)); }
+    if (EL.gridPentColor) { EL.gridPentColor.value = '#' + P.gridPentColor.getHexString(); setVal('gridPentColor', '#' + P.gridPentColor.getHexString()); }
+    if (EL.gridPentSize) { EL.gridPentSize.value = String(P.gridPentSize); setVal('gridPentSize', fmt3(P.gridPentSize)); }
+
+    // Dots
+    if (EL.gridDots) { EL.gridDots.checked = !!P.gridDots; setVal('gridDots', P.gridDots ? 'on' : 'off'); }
+    if (EL.gridDotMode) { EL.gridDotMode.value = String(P.gridDotMode || 'edges'); setVal('gridDotMode', String(P.gridDotMode || 'edges')); }
+    if (EL.gridDotStride) { EL.gridDotStride.value = String(P.gridDotStride|0); setVal('gridDotStride', String(P.gridDotStride|0)); }
+    if (EL.gridDotColor) { EL.gridDotColor.value = '#' + P.gridDotColor.getHexString(); setVal('gridDotColor', '#' + P.gridDotColor.getHexString()); }
+    if (EL.gridDotOpacity) { EL.gridDotOpacity.value = String(P.gridDotOpacity); setVal('gridDotOpacity', fmt2(P.gridDotOpacity)); }
+    if (EL.gridDotSize) { EL.gridDotSize.value = String(P.gridDotSize); setVal('gridDotSize', fmt3(P.gridDotSize)); }
 
     // Light + atmo
     EL.sunAz.value = String(P.sunAz);
@@ -2404,68 +3355,60 @@ n = 0.5*n + 0.5;
     setVal('cloudSpeed', P.cloudSpeed.toFixed(2));
     setVal('cloudSh', P.cloudShadowStrength.toFixed(2));
 
-    // Scatter
-    EL.scatterOn.checked = !!P.scatterOn;
-    EL.scatterDen.value = String(P.scatterDen);
-    EL.scatterRad.value = String(P.scatterRad);
-    setVal('scatterOn', P.scatterOn ? 'on' : 'off');
-    setVal('scatterDen', fmt2(P.scatterDen));
-    setVal('scatterRad', fmt3(P.scatterRad));
-
-    // Photo
-    EL.fov.value = String(P.fov);
-    EL.alt.value = String(P.alt);
+    // View
+    if (EL.fov) EL.fov.value = String(P.fov);
     setVal('fov', `${Math.round(P.fov)}°`);
-    setVal('alt', P.alt.toFixed(3));
   }
   updateSegSelects();
   syncUI();
+  updateGridVisibility();
 
   // ---------- Presets ----------
   // "best rn" as reported by you (heavy: midSegs=7168). Applied on demand.
-  const PRESETS = {
-    default: null,
-    best: {
-      lodMode: 'auto',
-      lod01: 0.24,
-      lod12: 1.60,
-      farSegs: 1024,
-      midSegs: 7168,
-      highSegs: 3072,
-      wire: false,
-      enableExtreme: true,
-      autoSegs: true,
-      autoQuality: true,
-      targetFPS: 60,
-      resScale: 1.35,
-      pixRatioCap: 2.0,
-      lodPx: 0.25,
-      heightAmp: 0.12,
-      noiseScale: 2.45,
-      seaLevel: 0.025,
-      temperature: 0.58,
-      sunAz: 35,
-      sunEl: 28,
-      atmoD: 0.21,
-      haze: 0.41,
-      exposure: 1.07,
-      cloudOn: true,
-      cloudOpacity: 0.43,
-      cloudScale: 6.0,
-      cloudCoverage: 0.44,
-      cloudSoftness: 0.22,
-      cloudSpeed: 0.19,
-      cloudShadowStrength: 0.63,
-      scatterOn: true,
-      scatterDen: 0.92,
-      scatterRad: 0.09,
-      fov: 42,
-      alt: 0.02,
-      seed: [12.3, -3.7, 8.9],
-    }
-  };
+  // ---- Presets ----------
+// Single default preset (Cap Optimized). Other presets intentionally removed for now.
+const PRESETS = {
+  default: {
+    lodMode: 'auto',
+    lod01: 0.50,
+    lod12: 1.10,
+    farSegs: 1024,
+    midSegs: 2048,
+    highSegs: 3072,
+    capOn: true,
+    capStart: 2.00,
+    capMul: 1.50,
+    capSegs: 2048,
+    wire: false,
+    enableExtreme: false,
+    autoSegs: true,
+    autoQuality: true,
+    targetFPS: 60,
+    resScale: 1.35,
+    pixRatioCap: 2.0,
+    lodPx: 4.0,
+    heightAmp: 0.04,
+    noiseScale: 2.45,
+    seaLevel: 0.004,
+    temperature: 0.36,
+    sunAz: -20,
+    sunEl: 49,
+    atmoD: 0.23,
+    haze: 0.84,
+    exposure: 1.27,
+    cloudOn: true,
+    cloudOpacity: 0.71,
+    cloudScale: 6.0,
+    cloudCoverage: 0.47,
+    cloudSoftness: 0.25,
+    cloudSpeed: 0.12,
+    cloudShadowStrength: 0.55,
+fov: 42,
+    seed: [12.3, -3.7, 8.9],
+  },
+};
 
-  function applyPreset(name){
+function applyPreset(name){
     const pr = PRESETS[name];
     if (!pr) return;
 
@@ -2485,20 +3428,28 @@ n = 0.5*n + 0.5;
     }
 
     const keys = [
-      'lodMode','lod01','lod12','farSegs','midSegs','highSegs','wire',
+      'lodMode','lod01','lod12','farSegs','midSegs','highSegs','capOn','capStart','capMul','capSegs','wire',
       'autoSegs','autoQuality','targetFPS','resScale','pixRatioCap','lodPx',
       'heightAmp','noiseScale','seaLevel','temperature',
       'sunAz','sunEl','atmoD','haze','exposure',
       'cloudOn','cloudOpacity','cloudScale','cloudCoverage','cloudSoftness','cloudSpeed','cloudShadowStrength',
-      'scatterOn','scatterDen','scatterRad','fov','alt'
+      'fov'
     ];
     for (const k of keys){
       if (pr[k] !== undefined) P[k] = pr[k];
     }
 
+    // Grid colors come in as hex strings from presets
+    if (typeof P.gridColor === 'string') P.gridColor = new THREE.Color(P.gridColor);
+    if (typeof P.gridSelColor === 'string') P.gridSelColor = new THREE.Color(P.gridSelColor);
+    if (typeof P.gridPentColor === 'string') P.gridPentColor = new THREE.Color(P.gridPentColor);
+    if (typeof P.gridDotColor === 'string') P.gridDotColor = new THREE.Color(P.gridDotColor);
+
+
     // Validate huge segs
     if (P.midSegs >= 4096 && !confirmHugeSphere(P.midSegs)) P.midSegs = 3072;
     if (P.highSegs >= 4096 && !confirmHugeSphere(P.highSegs)) P.highSegs = 3072;
+    if (P.capSegs >= 4096 && !confirmHugeSphere(P.capSegs)) P.capSegs = 3072;
 
     if (EL.lodMode) EL.lodMode.value = P.lodMode;
     if (EL.farSegs) EL.farSegs.value = String(P.farSegs);
@@ -2517,6 +3468,7 @@ n = 0.5*n + 0.5;
     if (surfaceFar) surfaceFar.material.wireframe = !!P.wire;
     if (surfaceMid) surfaceMid.material.wireframe = !!P.wire;
     if (surfaceHigh) surfaceHigh.material.wireframe = !!P.wire;
+    if (surfaceCap) surfaceCap.material.wireframe = !!P.wire;
 
     markTerrainDirty();
     syncUI();
@@ -2524,7 +3476,8 @@ n = 0.5*n + 0.5;
 
 
   function markTerrainDirty(){
-    scatterState.dirty = true;
+    if (gridState) gridState.dirty = true;
+    updateAtmoScale();
   }
 
   // LOD handlers
@@ -2534,7 +3487,6 @@ n = 0.5*n + 0.5;
   });
   if (EL.presetSel) EL.presetSel.addEventListener('change', ()=>{
     const name = String(EL.presetSel.value);
-    if (name === 'default') return; // do nothing (you can refresh for full default)
     applyPreset(name);
   });
   EL.lod01.addEventListener('input', ()=>{
@@ -2608,6 +3560,8 @@ n = 0.5*n + 0.5;
       if (P.highSegs > 3072) P.highSegs = 3072;
       EL.midSegs.value = String(P.midSegs);
       EL.highSegs.value = String(P.highSegs);
+      if (P.capSegs > 3072) P.capSegs = 3072;
+      EL.capSegs.value = String(P.capSegs);
     }
     markTerrainDirty();
     syncUI();
@@ -2618,6 +3572,7 @@ n = 0.5*n + 0.5;
     if (surfaceFar) surfaceFar.material.wireframe = !!P.wire;
     if (surfaceMid) surfaceMid.material.wireframe = !!P.wire;
     if (surfaceHigh) surfaceHigh.material.wireframe = !!P.wire;
+    if (surfaceCap) surfaceCap.material.wireframe = !!P.wire;
     syncUI();
   });
 
@@ -2657,6 +3612,40 @@ n = 0.5*n + 0.5;
     syncUI();
   });
 
+  // Onscreen cap handlers
+  if (EL.capOn) EL.capOn.addEventListener('change', ()=>{ P.capOn = !!EL.capOn.checked; syncUI(); });
+  if (EL.capStart) EL.capStart.addEventListener('input', ()=>{ P.capStart = parseFloat(EL.capStart.value); syncUI(); });
+  if (EL.capMul) EL.capMul.addEventListener('input', ()=>{ P.capMul = parseFloat(EL.capMul.value); syncUI(); });
+  if (EL.capPad) EL.capPad.addEventListener('input', ()=>{ P.capPad = parseFloat(EL.capPad.value); syncUI(); });
+  let _capSegSync = false;
+  if (EL.capSegsMode) EL.capSegsMode.addEventListener('change', ()=>{
+    if (_capSegSync) return;
+    _capSegSync = true;
+    if (EL.capSegs) EL.capSegs.value = EL.capSegsMode.value;
+    _capSegSync = false;
+    if (EL.capSegs) EL.capSegs.dispatchEvent(new Event('change'));
+  });
+
+  if (EL.capSegs) EL.capSegs.addEventListener('change', ()=>{
+    let v = parseInt(EL.capSegs.value, 10);
+    if (v > 3072 && !P.enableExtreme){
+      P.enableExtreme = true;
+      EL.extreme.checked = true;
+      applyExtremeMode();
+      updateSegSelects();
+    }
+    if (v >= 4096){
+      if (!confirmHugeSphere(v)){
+        v = 3072;
+        EL.capSegs.value = String(v);
+      }
+    }
+    P.capSegs = v;
+    if (EL.capSegsMode && !_capSegSync){ _capSegSync = true; EL.capSegsMode.value = String(v); _capSegSync = false; }
+    requestCapGeom(P.capSegs);
+    syncUI();
+  });
+
 
   // Terrain handlers
   EL.height.addEventListener('input', ()=>{ P.heightAmp = parseFloat(EL.height.value); markTerrainDirty(); syncUI(); });
@@ -2680,18 +3669,80 @@ n = 0.5*n + 0.5;
   EL.cloudSpeed.addEventListener('input', ()=>{ P.cloudSpeed = parseFloat(EL.cloudSpeed.value); syncUI(); });
   EL.cloudSh.addEventListener('input', ()=>{ P.cloudShadowStrength = parseFloat(EL.cloudSh.value); syncUI(); });
 
-  // Scatter handlers
-  EL.scatterOn.addEventListener('change', ()=>{ P.scatterOn = !!EL.scatterOn.checked; scatterState.dirty = true; syncUI(); });
-  EL.scatterDen.addEventListener('input', ()=>{ P.scatterDen = parseFloat(EL.scatterDen.value); scatterState.dirty = true; syncUI(); });
-  EL.scatterRad.addEventListener('input', ()=>{ P.scatterRad = parseFloat(EL.scatterRad.value); scatterState.dirty = true; syncUI(); });
 
-  // Photo handlers
-  EL.fov.addEventListener('input', ()=>{ P.fov = parseFloat(EL.fov.value); syncUI(); });
-  EL.alt.addEventListener('input', ()=>{ P.alt = parseFloat(EL.alt.value); syncUI(); });
+  // Grid handlers
+  if (EL.gridOn) EL.gridOn.addEventListener('change', ()=>{
+    P.gridOn = !!EL.gridOn.checked;
+    if (gridState){ gridState.visible = P.gridOn; gridState.dirty = true; }
+    updateGridVisibility();
+    syncUI();
+  });
+  if (EL.gridDetail) EL.gridDetail.addEventListener('input', ()=>{
+    P.gridDetail = parseInt(EL.gridDetail.value,10);
+    if (gridState) gridState.dirtyTopo = true;
+    syncUI();
+  });
+  if (EL.gridAlpha) EL.gridAlpha.addEventListener('input', ()=>{
+    P.gridAlpha = parseFloat(EL.gridAlpha.value);
+    if (gridState && gridState.lines && gridState.lines.material) gridState.lines.material.opacity = P.gridAlpha;
+    syncUI();
+  });
+  if (EL.gridEdgeOff) EL.gridEdgeOff.addEventListener('input', ()=>{
+    P.gridEdgeOff = parseFloat(EL.gridEdgeOff.value);
+    if (gridState) gridState.dirty = true;
+    syncUI();
+  });
+  if (EL.gridConform) EL.gridConform.addEventListener('change', ()=>{
+    P.gridConform = !!EL.gridConform.checked;
+    if (gridState) gridState.dirty = true;
+    syncUI();
+  });
+  if (EL.gridArc) EL.gridArc.addEventListener('change', ()=>{
+    P.gridArc = !!EL.gridArc.checked;
+    if (gridState) gridState.dirty = true;
+    syncUI();
+  });
+  if (EL.gridPent) EL.gridPent.addEventListener('change', ()=>{
+    P.gridPent = !!EL.gridPent.checked;
+    if (gridState && gridState.pents) gridState.pents.visible = !!P.gridPent;
+    syncUI();
+  });
+
+  // Grid styling controls
+  if (EL.gridThick) EL.gridThick.addEventListener('input', ()=>{ P.gridThick = parseFloat(EL.gridThick.value); if (gridState) gridState.dirty = true; syncUI(); });
+  if (EL.gridColor) EL.gridColor.addEventListener('input', ()=>{ P.gridColor.set(EL.gridColor.value); if (gridState) gridState.dirty = true; syncUI(); });
+  if (EL.gridSelThick) EL.gridSelThick.addEventListener('input', ()=>{ P.gridSelThick = parseFloat(EL.gridSelThick.value); if (gridState) gridState.dirty = true; syncUI(); });
+  if (EL.gridSelColor) EL.gridSelColor.addEventListener('input', ()=>{ P.gridSelColor.set(EL.gridSelColor.value); if (gridState) gridState.dirty = true; syncUI(); });
+  if (EL.gridFillA) EL.gridFillA.addEventListener('input', ()=>{ P.gridFillA = parseFloat(EL.gridFillA.value); if (gridState) gridState.dirty = true; syncUI(); });
+  if (EL.gridPentColor) EL.gridPentColor.addEventListener('input', ()=>{ P.gridPentColor.set(EL.gridPentColor.value); if (gridState) gridState.dirty = true; syncUI(); });
+  if (EL.gridPentSize) EL.gridPentSize.addEventListener('input', ()=>{ P.gridPentSize = parseFloat(EL.gridPentSize.value); if (gridState) gridState.dirty = true; syncUI(); });
+
+  // Grid dots
+  if (EL.gridDots) EL.gridDots.addEventListener('change', ()=>{ P.gridDots = !!EL.gridDots.checked; if (gridState) gridState.dirty = true; syncUI(); });
+  if (EL.gridDotMode) EL.gridDotMode.addEventListener('change', ()=>{ P.gridDotMode = String(EL.gridDotMode.value || 'edges'); if (gridState) gridState.dirty = true; syncUI(); });
+  if (EL.gridDotStride) EL.gridDotStride.addEventListener('input', ()=>{ P.gridDotStride = parseInt(EL.gridDotStride.value,10) || 1; if (gridState) gridState.dirty = true; syncUI(); });
+  if (EL.gridDotColor) EL.gridDotColor.addEventListener('input', ()=>{ P.gridDotColor.set(EL.gridDotColor.value); if (gridState) gridState.dirty = true; syncUI(); });
+  if (EL.gridDotOpacity) EL.gridDotOpacity.addEventListener('input', ()=>{ P.gridDotOpacity = parseFloat(EL.gridDotOpacity.value); if (gridState) gridState.dirty = true; syncUI(); });
+  if (EL.gridDotSize) EL.gridDotSize.addEventListener('input', ()=>{ P.gridDotSize = parseFloat(EL.gridDotSize.value); if (gridState) gridState.dirty = true; syncUI(); });
+
+  if (EL.btnGridRebuild) EL.btnGridRebuild.addEventListener('click', ()=>{
+    if (gridState){ gridState.dirtyTopo = true; gridState.dirty = true; }
+  });
+  if (EL.btnGridToggle) EL.btnGridToggle.addEventListener('click', ()=>{
+    P.gridOn = !P.gridOn;
+    if (EL.gridOn) EL.gridOn.checked = P.gridOn;
+    if (gridState){ gridState.visible = P.gridOn; gridState.dirty = true; }
+    updateGridVisibility();
+    syncUI();
+  });
+
+  // View handlers
+  if (EL.fov) EL.fov.addEventListener('input', ()=>{ P.fov = parseFloat(EL.fov.value); syncUI(); });
 
   // Buttons
-  document.getElementById('btnMode').addEventListener('click', ()=> setMode(mode === Mode.PHOTO ? Mode.ORBIT : Mode.PHOTO));
   document.getElementById('btnThirds').addEventListener('click', ()=> thirds.style.display = (thirds.style.display === 'none' ? 'block' : 'none'));
+  const btnHudToggle = document.getElementById('btnHudToggle');
+  if (btnHudToggle) btnHudToggle.addEventListener('click', ()=> toggleHudHidden());
 
   document.getElementById('btnSeed').addEventListener('click', ()=>{
     simplex = new SimplexNoise(String(Math.floor(Math.random()*1e9)));
@@ -2699,9 +3750,6 @@ n = 0.5*n + 0.5;
 
     UCommon.uSeed.value.copy(seedV);
     if (cloudsMesh) cloudsMesh.material.uniforms.uSeed.value.copy(seedV);
-
-    scatterState.dirty = true;
-    rebuildScatter();
   });
 
   document.getElementById('btnCopy').addEventListener('click', async ()=>{
@@ -2712,6 +3760,16 @@ n = 0.5*n + 0.5;
       `lod12: ${P.lod12}`,      `farSegs: ${P.farSegs}`,
       `midSegs: ${P.midSegs}`,
       `highSegs: ${P.highSegs}`,
+      `capOn: ${P.capOn}`,
+      `capStart: ${P.capStart}`,
+      `capMul: ${P.capMul}`,
+      `capSegs: ${P.capSegs}`,
+      `gridOn: ${P.gridOn}`,
+      `gridDetail: ${P.gridDetail}`,
+      `gridAlpha: ${P.gridAlpha}`,
+      `gridEdgeOff: ${P.gridEdgeOff}`,
+      `gridArc: ${P.gridArc}`,
+      `gridPent: ${P.gridPent}`,
       `wire: ${P.wire}`,
 
       `heightAmp: ${P.heightAmp}`,
@@ -2730,11 +3788,7 @@ n = 0.5*n + 0.5;
       `cloudSoftness: ${P.cloudSoftness}`,
       `cloudSpeed: ${P.cloudSpeed}`,
       `cloudShadowStrength: ${P.cloudShadowStrength}`,
-      `scatterOn: ${P.scatterOn}`,
-      `scatterDen: ${P.scatterDen}`,
-      `scatterRad: ${P.scatterRad}`,
       `fov: ${P.fov}`,
-      `alt: ${P.alt}`,
       `seed: [${seedV.x.toFixed(3)}, ${seedV.y.toFixed(3)}, ${seedV.z.toFixed(3)}]`
     ];
     out.value = lines.join('\\n');
@@ -2784,10 +3838,19 @@ n = 0.5*n + 0.5;
   }
 
   // ---------- Resize ----------
+  function updateGridLineRes(){
+    const w = innerWidth, h = innerHeight;
+    const m1 = gridState && gridState.lines && gridState.lines.material;
+    const m2 = gridState && gridState.selLines && gridState.selLines.material;
+    if (m1 && m1.resolution) m1.resolution.set(w, h);
+    if (m2 && m2.resolution) m2.resolution.set(w, h);
+  }
+
   window.addEventListener('resize', ()=>{
     camera.aspect = innerWidth/innerHeight;
     camera.updateProjectionMatrix();
     applyPixelRatio();
+    updateGridLineRes();
   });
 
   // ---------- Animate ----------
@@ -2939,24 +4002,28 @@ n = 0.5*n + 0.5;
     // Keep sky centered on camera
     if (skyMesh) skyMesh.position.copy(camera.position);
 
-    if (mode === Mode.PHOTO){
-      moveAnchorOnSphere(dt);
-      updateCameraPhoto();
+    // Controls + tile lock
+    if (tileLock.active) {
+      updateTileLock();
     } else {
-      anchorMarker.visible = false;
-      scatterGroup.visible = false;
       orbit.update();
-
-      if (skyMesh) skyMesh.material.uniforms.uUpDir.value.copy(camera.up);
     }
+    enforceCameraOutsidePlanet();
+
+    if (skyMesh) skyMesh.material.uniforms.uUpDir.value.copy(camera.up);
 
     // LOD selection (works in both modes)
     const scr = planetScreenMetrics();
     const sf = scr.frac;
     const diamPx = scr.diamPx;
 
-    // Auto segment selection: pick sphere segment counts based on on-screen size.
-    // (Keeps the planet looking smooth when it fills the frame, without always paying for max geo.)
+    // Update view anchor (under view center) every frame, even when cap isn't active
+    updateCapFrame(sf);
+    anchorDirLocal.copy(UCap.uCapDir.value);
+
+
+    // Auto segment selection: pick segment counts based on on-screen size.
+    // When screenFrac is very high, switch to an onscreen-only cap patch that can be much denser without paying for the whole globe.
     const pxHigh = P.lodPx;
     const pxMid  = P.lodPx * 1.6;
     const pxFar  = P.lodPx * 2.4;
@@ -2964,6 +4031,9 @@ n = 0.5*n + 0.5;
     let segFar  = P.farSegs;
     let segMid  = P.midSegs;
     let segHigh = P.highSegs;
+
+    // Cap mode: only when auto LOD is active and planet is huge on-screen.
+    const useCap = !!(P.capOn && P.lodMode === 'auto' && sf >= P.capStart);
 
     if (P.autoSegs){
       const reqFar  = Math.ceil(Math.PI * diamPx / Math.max(1.0, pxFar));
@@ -2975,64 +4045,83 @@ n = 0.5*n + 0.5;
       segHigh = chooseSeg(reqHigh, P.highSegs);
     }
 
-    // Always keep far ready. Prefetch mid/high as we approach thresholds to avoid popping.
-    if (surfaceFar) setMeshDesiredSeg(surfaceFar, segFar);
+    if (useCap){
+      // Build / update the cap frame and request cap grid geometry.
+      // Cap resolution is user-selected (stable). Use a high seg count and keep px/seg low.
+      const segCap = (P.capSegs|0);
 
-    const wantMid = (P.lodMode === 'mid') || (P.lodMode === 'high') || (P.lodMode === 'auto' && sf > (P.lod01 - 0.18));
-    if (surfaceMid && wantMid) setMeshDesiredSeg(surfaceMid, segMid);
+      if (surfaceCap) setMeshDesiredCapSeg(surfaceCap, segCap);
 
-    const wantHigh = (P.lodMode === 'high') || (P.lodMode === 'auto' && sf > (P.lod12 - 0.18));
-    if (surfaceHigh && wantHigh) setMeshDesiredSeg(surfaceHigh, segHigh);
+      // Turn off sphere LODs while cap is active (avoids crusting / z-fight)
+      if (!capActive){
+        capActive = true;
+        if (surfaceFar) surfaceFar.visible = false;
+        if (surfaceMid) surfaceMid.visible = false;
+        if (surfaceHigh) surfaceHigh.visible = false;
+      }
+      if (surfaceCap) surfaceCap.visible = true;
 
-    const lod = pickLOD(sf);
-    if (lod !== activeLOD) setActiveLOD(lod);
+    } else {
+      // Cap off; run the normal sphere LOD system.
+      const wasCap = capActive;
+      if (capActive){
+        capActive = false;
+        if (surfaceCap) surfaceCap.visible = false;
+      }
 
+      // Always keep far ready. Prefetch mid/high as we approach thresholds to avoid popping.
+      if (surfaceFar) setMeshDesiredSeg(surfaceFar, segFar);
 
+      const wantMid = (P.lodMode === 'mid') || (P.lodMode === 'high') || (P.lodMode === 'auto' && sf > (P.lod01 - 0.18));
+      if (surfaceMid && wantMid) setMeshDesiredSeg(surfaceMid, segMid);
 
-    // If terrain params changed, we don't rebuild geo, but we DO need to refresh scatter
-    if (mode === Mode.PHOTO && P.scatterOn && scatterState.dirty){
-      rebuildScatter();
+      const wantHigh = (P.lodMode === 'high') || (P.lodMode === 'auto' && sf > (P.lod12 - 0.18));
+      if (surfaceHigh && wantHigh) setMeshDesiredSeg(surfaceHigh, segHigh);
+
+      const lod = pickLOD(sf);
+      if (lod !== activeLOD || wasCap) setActiveLOD(lod);
     }
+
+    // Grid rebuild (debounced)
+    if (P.gridOn) maybeRebuildGrid(now);
 
     applyParamsToShaders(timeSec);
     updateSunDir();
 
     // HUD
-    const lat = Math.asin(photo.anchorDirLocal.y) * 180/Math.PI;
-    const lon = Math.atan2(photo.anchorDirLocal.z, photo.anchorDirLocal.x) * 180/Math.PI;
+    const lat = Math.asin(anchorDirLocal.y) * 180/Math.PI;
+    const lon = Math.atan2(anchorDirLocal.z, anchorDirLocal.x) * 180/Math.PI;
 
     const alt = (camera.position.length() - 1.0);
-    const yaw = photo.yaw;
-    const pitch = photo.pitch;
-    const roll = photo.roll;
 
-    const lodName = (activeLOD === 0 ? 'far' : activeLOD === 1 ? 'mid' : 'high');
+    const lodName = capActive ? 'cap' : (activeLOD === 0 ? 'far' : activeLOD === 1 ? 'mid' : 'high');
+
+    const gridInfo = tileInfoString();
 
     hudTitle.textContent = `HUD • ${perf.fps ? perf.fps.toFixed(0) : '--'} fps`;
     const segF = surfaceFar ? (surfaceFar.userData.seg|0) : 0;
     const segM = surfaceMid ? (surfaceMid.userData.seg|0) : 0;
     const segH = surfaceHigh ? (surfaceHigh.userData.seg|0) : 0;
-
+    const segC = surfaceCap ? (surfaceCap.userData.seg|0) : 0;
     hudText.textContent =
-`Planetside Photo Mode — Pixcel Planet++ (adaptive LOD + worker)
+`Planetside — Pixcel Planet++ (menubar UI)
 perf: ${perf.fps ? perf.fps.toFixed(0) : '--'} fps   avg: ${perf.msAvg ? perf.msAvg.toFixed(1) : '--'}ms   p95: ${perf.msP95 ? perf.msP95.toFixed(1) : '--'}ms   stutter: ${perf.stutterPct ? perf.stutterPct.toFixed(0) : '0'}%   geomJobs: ${geomPending.count}
-mode: ${mode}   LOD: ${lodName}   screenFrac: ${fmt2(sf)}   diamPx: ${fmt0(diamPx)}
+LOD: ${lodName}   screenFrac: ${fmt2(sf)}   diamPx: ${fmt0(diamPx)}
 quality: autoSegs ${P.autoSegs?'on':'off'}   autoQ ${P.autoQuality?'on':'off'}   target ${Math.round(P.targetFPS)}fps
          resScale ${fmt2(P.resScale)}   lodPx ${fmt1(P.lodPx)}
-segs: far ${segF}   mid ${segM}   high ${segH}   (max ${P.farSegs}/${P.midSegs}/${P.highSegs})
+segs: far ${segF}   mid ${segM}   high ${segH}   cap ${segC}   (max ${P.farSegs}/${P.midSegs}/${P.highSegs} capMax ${P.capSegs})
+lock: tile ${tileLock.active ? ('ON #' + tileLock.tile) : 'off'}   (double-click to toggle)
 
-FOV:  ${fmt0(camera.fov)}°   altitude: ${fmt3(alt)} (planet radii)
+FOV:  ${fmt0(camera.fov)}°   radius: ${fmt3(camera.position.length())}   alt: ${fmt3(alt)}
 sun:  az ${fmt0(P.sunAz)}°  el ${fmt0(P.sunEl)}°
 loc:  lat ${fmt2(lat)}°  lon ${fmt2(lon)}°
-look: yaw ${fmt2(yaw)}  pitch ${fmt2(pitch)}  roll ${fmt2(roll)}
-
-clouds: ${P.cloudOn?'on ':'off'} opacity ${fmt2(P.cloudOpacity)} coverage ${fmt2(P.cloudCoverage)}
-scatter: ${P.scatterOn?'on ':'off'} density ${fmt2(P.scatterDen)} radius ${fmt3(P.scatterRad)}
+${gridInfo ? (gridInfo + '\n') : ''}clouds: ${P.cloudOn?'on ':'off'} opacity ${fmt2(P.cloudOpacity)} coverage ${fmt2(P.cloudCoverage)}
 
 controls:
-  H toggle HUD | P toggle Photo Mode | Space thirds
-  Orbit: drag + wheel | Photo: drag pan/tilt, wheel altitude, WASD move, Shift faster, Q/E roll, dblclick relocate
+  H toggle HUD | Space thirds | G toggle grid
+  Orbit: drag + wheel | click/tap selects tile | double-click locks camera to tile
 `;
+
 
     renderer.render(scene, camera);
   }
