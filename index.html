@@ -3977,6 +3977,14 @@ function applyPreset(name){
   const adapt = {
     lowMs: 0,
     highMs: 0,
+
+    // Emergency per-level downshift: if we sit below 10fps for a long time in a given zoom regime,
+    // step down ONLY that regime's segmentation.
+    low10MsCap: 0,
+    low10MsHigh: 0,
+    low10MsMid: 0,
+    low10MsFar: 0,
+    low10TriggerMs: 8000,
     lastChange: t0,
     lastPerfReport: 0,
 
@@ -4324,6 +4332,93 @@ function applyPreset(name){
     } else {
       adapt.lowMs = Math.max(0, adapt.lowMs - stepMs * 0.5);
       adapt.highMs = Math.max(0, adapt.highMs - stepMs * 0.5);
+    }
+
+
+    // Emergency per-regime segmentation downshift:
+    // If the device is stuck under 10fps for >8s in a specific zoom regime (cap/high/mid/far),
+    // step down ONLY that regime's segmentation. This is intentionally conservative and only triggers
+    // under sustained extreme lows.
+    {
+      const fps = perf.fps;
+      const sfNow = planetScreenMetrics().frac;
+      const capActive = !!(P.capOn && sfNow >= P.capStart);
+
+      let regime = 'far';
+      if (capActive) regime = 'cap';
+      else if (sfNow >= P.lod12) regime = 'high';
+      else if (sfNow >= P.lod01) regime = 'mid';
+
+      // Reset other regimes so the timer is "solid" (continuous) in the current regime.
+      if (regime !== 'cap') adapt.low10MsCap = 0;
+      if (regime !== 'high') adapt.low10MsHigh = 0;
+      if (regime !== 'mid') adapt.low10MsMid = 0;
+      if (regime !== 'far') adapt.low10MsFar = 0;
+
+      const isLow10 = (fps > 0 && fps < 10);
+
+      if (!isLow10){
+        if (regime === 'cap') adapt.low10MsCap = 0;
+        else if (regime === 'high') adapt.low10MsHigh = 0;
+        else if (regime === 'mid') adapt.low10MsMid = 0;
+        else adapt.low10MsFar = 0;
+      } else {
+        if (regime === 'cap') adapt.low10MsCap += stepMs;
+        else if (regime === 'high') adapt.low10MsHigh += stepMs;
+        else if (regime === 'mid') adapt.low10MsMid += stepMs;
+        else adapt.low10MsFar += stepMs;
+
+        const t = (regime === 'cap') ? adapt.low10MsCap :
+                  (regime === 'high') ? adapt.low10MsHigh :
+                  (regime === 'mid') ? adapt.low10MsMid : adapt.low10MsFar;
+
+        // Avoid rapid repeated steps; respect a small cooldown even for emergency actions.
+        const emergencyCooldown = 1200;
+
+        if (t >= adapt.low10TriggerMs && (nowMs - adapt.lastChange) >= emergencyCooldown){
+          let changed = false;
+
+          if (regime === 'cap'){
+            const next = stepDownOpt(CAP_SEG_OPTS_UI, P.capSegs);
+            if (next !== P.capSegs){ P.capSegs = next; changed = true; }
+          } else if (regime === 'high'){
+            const next = stepDownOpt(HIGH_SEG_OPTS_UI, P.highSegs);
+            if (next !== P.highSegs){ P.highSegs = next; changed = true; }
+          } else if (regime === 'mid'){
+            const next = stepDownOpt(MID_SEG_OPTS_UI, P.midSegs);
+            if (next !== P.midSegs){ P.midSegs = next; changed = true; }
+          } else {
+            const next = stepDownOpt(FAR_SEG_OPTS_UI, P.farSegs);
+            if (next !== P.farSegs){ P.farSegs = next; changed = true; }
+          }
+
+          if (changed){
+            adapt.downCount++;
+            adapt.lastChange = nowMs;
+
+            // Request geometry rebuild for the new segment count.
+            if (regime === 'cap'){
+              requestCapGeom(P.capSegs);
+              if (capMesh) setMeshDesiredSeg(capMesh, P.capSegs);
+            } else {
+              const seg = (regime === 'high') ? P.highSegs : (regime === 'mid') ? P.midSegs : P.farSegs;
+              requestSphereGeom(seg);
+              if (regime === 'high' && surfaceHigh) setMeshDesiredSeg(surfaceHigh, P.highSegs);
+              if (regime === 'mid' && surfaceMid) setMeshDesiredSeg(surfaceMid, P.midSegs);
+              if (regime === 'far' && surfaceFar) setMeshDesiredSeg(surfaceFar, P.farSegs);
+            }
+
+            markTerrainDirty();
+            syncUI();
+          }
+
+          // Reset the timer for this regime either way to avoid repeated firing.
+          if (regime === 'cap') adapt.low10MsCap = 0;
+          else if (regime === 'high') adapt.low10MsHigh = 0;
+          else if (regime === 'mid') adapt.low10MsMid = 0;
+          else adapt.low10MsFar = 0;
+        }
+      }
     }
 
     // Cooldown after any change to prevent thrash.
