@@ -2,19 +2,20 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>Planetside — Pixcel Planet++ (Menubar UI, no Photo Mode)</title>
   <style>
     html, body { margin:0; height:100%; overflow:hidden; background:#000; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
-    canvas { width:100vw; height:100vh; display:block; }
+    :root { --vh: 1vh; }
+    canvas { width:100vw; height:100vh; height: calc(var(--vh, 1vh) * 100); display:block; }
 
     /* Win95-ish top menubar */
     #menubar{
-      position:fixed; left:0; right:0; top:0; height:34px;
+      position:fixed; left:0; right:0; top:0; height: calc(34px + env(safe-area-inset-top, 0px));
       background:#cfcfcf;
       border-bottom:2px solid #888;
       display:flex; align-items:center;
-      padding:0 6px;
+      padding: env(safe-area-inset-top, 0px) 6px 0 6px;
       z-index:1000;
       font: 13px/1 "Segoe UI", Tahoma, Arial, sans-serif;
       user-select:none;
@@ -38,14 +39,23 @@
       left:0;
       min-width: 340px;
       max-width: min(520px, calc(100vw - 16px));
-      max-height: calc(100vh - 44px);
+      /* Use a JS-backed viewport unit to avoid iOS Safari URL bar hiding lower menu items */
+      max-height: calc(var(--vh, 1vh) * 100 - 44px);
       overflow:auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
       background:#efefef;
       border:1px solid #777;
       box-shadow: 4px 4px 0 rgba(0,0,0,.35);
-      padding:10px 10px 12px;
+      padding:10px 10px calc(12px + env(safe-area-inset-bottom, 0px));
       z-index:1001;
       color:#111;
+    }
+    @media (pointer: coarse){
+      .submenu{
+        /* Extra reach room for bottom browser chrome / home indicator */
+        padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+      }
     }
     #menubar li.menu:hover .submenu{ display:block; }
     #menubar li.menu.open .submenu{ display:block; }
@@ -90,7 +100,7 @@
 
     /* HUD (draggable, minimizable) */
     #hud{
-      position:fixed; left:12px; top:44px; z-index:10;
+      position:fixed; left: calc(12px + env(safe-area-inset-left, 0px)); top: calc(44px + env(safe-area-inset-top, 0px)); z-index:10;
       color:#d8f2ff;
       background:rgba(0,0,0,.38);
       border:1px solid rgba(140,210,255,.22);
@@ -102,7 +112,7 @@
       min-width: 220px;
       min-height: 44px;
       max-width: min(110ch, calc(100vw - 24px));
-      max-height: calc(100vh - 70px);
+      max-height: calc(var(--vh, 1vh) * 100 - 70px - env(safe-area-inset-bottom, 0px));
       pointer-events:none;
       box-shadow: 0 14px 60px rgba(0,0,0,.35);
     }
@@ -475,11 +485,34 @@
     }
 
     void main(){
-      // True normal from displaced world position (derivatives)
-      vec3 dx = dFdx(vWorldPos);
-      vec3 dy = dFdy(vWorldPos);
-      vec3 N = normalize(cross(dx, dy));
-      if (!gl_FrontFacing) N = -N;
+      // Normals:
+      // - Nface: true geometric normal of the *interpolated* displaced mesh (fast but faceted when zoomed way in)
+      // - Nphong: reconstructed normal from a smoothly reprojected position (reduces faceting at extreme zoom)
+      vec3 dxF = dFdx(vWorldPos);
+      vec3 dyF = dFdy(vWorldPos);
+      vec3 Nface = normalize(cross(dxF, dyF));
+      if (!gl_FrontFacing) Nface = -Nface;
+
+      // Radial direction (world)
+      vec3 radial = normalize(vWorldPos);
+
+      // Reproject to a smooth analytic surface using the radial direction + clamped height.
+      // This gives us per-pixel curvature even when the mesh triangles are large on screen.
+      float surf = vH; // already clamped to sea level in the vertex shader
+      vec3 posSmooth = radial * (1.0 + surf);
+
+      vec3 dxP = dFdx(posSmooth);
+      vec3 dyP = dFdy(posSmooth);
+      vec3 Nphong = normalize(cross(dxP, dyP));
+      if (!gl_FrontFacing) Nphong = -Nphong;
+
+      // Blend toward the smoother normal when close to the surface
+      float altitude = max(0.0, length(uCameraPos) - 1.0);
+      float nearW = 1.0 - smoothstep(0.03, 0.20, altitude); // 1 near, 0 far
+      vec3 N = normalize(mix(Nface, Nphong, nearW));
+
+      // Keep outward orientation
+      if (dot(N, radial) < 0.0) N = -N;
 
       vec3 V = normalize(uCameraPos - vWorldPos);
       vec3 L = normalize(uLightDir);
@@ -488,8 +521,7 @@
       float NoL = max(dot(N, L), 0.0);
       float NoV = max(dot(N, V), 0.0);
 
-      // Radial direction (for slope)
-      vec3 radial = normalize(vWorldPos);
+      // Slope (0 = flat, 1 = vertical)
       float slope = 1.0 - clamp(dot(N, radial), 0.0, 1.0);
 
       // Latitude (0=equator, 1=poles)
@@ -563,9 +595,6 @@
       vec3 baseCol = mix(waterCol, landCol, land);
 
       // Lighting (softer ramp + stabilized normals)
-      // Blend derivative normal with geometric radial normal to avoid harsh micro-faceting
-      vec3 Ngeo = normalize(vDir);
-      N = normalize(mix(Ngeo, N, 0.75));
 
       float ambient = 0.20;
       // Soft diffuse ramp (prevents harsh transitions)
@@ -1069,6 +1098,18 @@
   import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 
   const canvas = document.getElementById('c');
+
+  // ---------- Mobile viewport helpers ----------
+  // iOS Safari's dynamic URL bar can cover the bottom of scrollable menus when using 100vh.
+  // We maintain a JS-backed --vh CSS variable (based on innerHeight) and use it in CSS.
+  function updateViewportVars(){
+    const vh = window.innerHeight * 0.01;
+    document.documentElement.style.setProperty('--vh', `${vh}px`);
+  }
+  updateViewportVars();
+  window.addEventListener('resize', updateViewportVars, { passive:true });
+  window.addEventListener('orientationchange', updateViewportVars, { passive:true });
+
   const hudEl = document.getElementById('hud');
   const hudText = document.getElementById('hudText');
   const hudHeader = document.getElementById('hudHeader');
@@ -1445,8 +1486,8 @@
   // Cap (onscreen patch) vertex shader: same terrain, but direction comes from a camera-centered patch frame
   const CAP_PLANET_VS = (()=>{
     let vs = BASE_PLANET_VS;
-    vs = vs.replace('uniform float uTime;', 'uniform float uTime;\nuniform vec3 uCapDir;\nuniform vec3 uCapT1;\nuniform vec3 uCapT2;\nuniform float uCapTan;');
-    vs = vs.replace('vec3 dir = normalize(position);', 'vec2 xy0 = position.xy;\n      vec3 dir = normalize(uCapDir + xy0.x * uCapTan * uCapT1 + xy0.y * uCapTan * uCapT2);');
+    vs = vs.replace('uniform float uTime;', 'uniform float uTime;\nuniform vec3 uCapDir;\nuniform vec3 uCapT1;\nuniform vec3 uCapT2;\nuniform vec2 uCapTan;');
+    vs = vs.replace('vec3 dir = normalize(position);', 'vec2 xy0 = position.xy;\n      vec3 dir = normalize(uCapDir + xy0.x * uCapTan.x * uCapT1 + xy0.y * uCapTan.y * uCapT2);');
     return vs;
   })();
 
@@ -1454,7 +1495,7 @@
     uCapDir: { value: new THREE.Vector3(0,1,0) },
     uCapT1:  { value: new THREE.Vector3(1,0,0) },
     uCapT2:  { value: new THREE.Vector3(0,0,1) },
-    uCapTan: { value: 1.0 },
+    uCapTan: { value: new THREE.Vector2(1,1) },
   };
 
 
@@ -1463,6 +1504,8 @@
     const t = Math.min(1, Math.max(0, (x-a)/(b-a)));
     return t*t*(3-2*t);
   }
+
+  const lerp = (a, b, t) => a + (b - a) * t;
 
   function planetScreenMetrics(){
     // Approx diameter fraction + pixel diameter of the planet on screen.
@@ -1546,82 +1589,129 @@ function enforceAboveTileTangent(tilePosW, tileUpW){
 }
 
 // Cap frame smoothing (reduces jitter/moire when cap is active)
-  const _capRefY = new THREE.Vector3(0,1,0);
-  const _capRefX = new THREE.Vector3(1,0,0);
-  let _capLastT = performance.now();
-  const _capDirSm = new THREE.Vector3(0,1,0);
-  let _capTanSm = 1.0;
-
   function halfDiagFovRad(){
-    const v = THREE.MathUtils.degToRad(camera.fov);
-    const aspect = camera.aspect || 1;
-    const tv = Math.tan(v*0.5);
-    const th = tv * aspect;
-    // half diagonal angle
-    return Math.atan(Math.sqrt(tv*tv + th*th));
+  const vF = camera.fov * Math.PI/180;
+  const tv = Math.tan(vF*0.5);
+  const th = tv * camera.aspect;
+  return Math.atan(Math.sqrt(th*th + tv*tv));
+}
+// Ray from origin along dir hits unit sphere? return unit direction of hit (point normalized), else null
+function raySphereDir(rayOriginW, rayDirW, outDirW){
+  const b = 2.0 * rayOriginW.dot(rayDirW);
+  const c = rayOriginW.dot(rayOriginW) - 1.0;
+  const disc = b*b - 4.0*c;
+  if(disc <= 0.0) return null;
+  const t = (-b - Math.sqrt(disc)) / 2.0;
+  const out = outDirW || _tmpV0;
+  out.copy(rayOriginW).addScaledVector(rayDirW, t).normalize();
+  return out;
+}
+
+// Cap patch: compute uCapDir/T1/T2/Tan so cap covers the current view region.
+const _capRefY = new THREE.Vector3(0,1,0);
+const _capRefX = new THREE.Vector3(1,0,0);
+let _capLastT = performance.now();
+const _capDirSm = new THREE.Vector3(0,1,0);
+let _capTanXSm = 1.0;
+let _capTanYSm = 1.0;
+
+const _capNDC = new THREE.Vector3();
+const _capRayW = new THREE.Vector3();
+const _capHitW = new THREE.Vector3();
+const _capHitL = new THREE.Vector3();
+const _capCamRightW = new THREE.Vector3();
+const _capCamUpW = new THREE.Vector3();
+const _capCamRightL = new THREE.Vector3();
+const _capCamUpL = new THREE.Vector3();
+
+function updateCapFrame(screenFrac){
+  const t = performance.now();
+  let dt = (t - _capLastT) / 1000;
+  _capLastT = t;
+  if(!isFinite(dt) || dt <= 0) dt = 0.016;
+
+  _invQ.copy(planet.quaternion).invert();
+
+  // Center hit under the camera's forward ray
+  camera.getWorldDirection(_capRayW).normalize();
+  if(!raySphereDir(camera.position, _capRayW, _capHitW)) return;
+  const dirL = _capHitL.copy(_capHitW).applyQuaternion(_invQ).normalize();
+
+  // Smooth to reduce shimmer while panning/zooming
+  const a = 1.0 - Math.pow(0.001, dt);
+  _capDirSm.lerp(dirL, a).normalize();
+  const dS = _capDirSm;
+
+  // Tangent frame aligned to the camera's screen axes (projected onto tangent plane)
+  _capCamRightW.set(1,0,0).applyQuaternion(camera.quaternion).normalize();
+  _capCamUpW.set(0,1,0).applyQuaternion(camera.quaternion).normalize();
+  _capCamRightL.copy(_capCamRightW).applyQuaternion(_invQ);
+  _capCamUpL.copy(_capCamUpW).applyQuaternion(_invQ);
+
+  const t1 = _tmpV0.copy(_capCamRightL).addScaledVector(dS, -_capCamRightL.dot(dS));
+  if(t1.lengthSq() < 1e-10){
+    t1.copy(Math.abs(dS.y) < 0.95 ? _capRefY : _capRefX).cross(dS);
+  }
+  t1.normalize();
+  const t2 = _tmpV1.copy(dS).cross(t1).normalize();
+
+  // Estimate required tan extents by intersecting frustum sample rays with the sphere.
+  // This naturally shrinks the cap footprint as we get closer to the surface (huge quality win with the same vertex budget).
+  let maxX = 0.0, maxY = 0.0;
+  let hitCount = 0;
+
+  function sample(nx, ny){
+    _capNDC.set(nx, ny, 0.5).unproject(camera);
+    _capRayW.copy(_capNDC).sub(camera.position).normalize();
+    if(!raySphereDir(camera.position, _capRayW, _capHitW)) return;
+    hitCount++;
+    _capHitL.copy(_capHitW).applyQuaternion(_invQ).normalize();
+    const cos = dS.dot(_capHitL);
+    if(cos <= 1e-5) return;
+    const tx = _capHitL.dot(t1) / cos;
+    const ty = _capHitL.dot(t2) / cos;
+    maxX = Math.max(maxX, Math.abs(tx));
+    maxY = Math.max(maxY, Math.abs(ty));
   }
 
-  function raySphereDir(o, d){
-    // Solve |o + t d|^2 = 1 for smallest positive t. Returns unit direction of hit point, or null.
-    const b = 2.0 * o.dot(d);
-    const c = o.dot(o) - 1.0;
-    const disc = b*b - 4.0*c;
-    if (disc < 0.0) return null;
-    const s = Math.sqrt(disc);
-    const t0 = (-b - s) * 0.5;
-    const t1 = (-b + s) * 0.5;
-    const t = (t0 > 0.0) ? t0 : (t1 > 0.0 ? t1 : -1.0);
-    if (t <= 0.0) return null;
-    const p = _tmpV0.copy(o).addScaledVector(d, t);
-    return p.normalize();
+  // Corners first (usually sufficient in deep-zoom where the planet fills the screen)
+  sample(-1,-1); sample( 1,-1); sample(-1, 1); sample( 1, 1);
+
+  // If corners miss (planet not filling the screen yet), sample edges too for a better fit
+  if(hitCount < 4){
+    sample(-1, 0); sample( 1, 0); sample(0,-1); sample(0, 1);
   }
 
-  function updateCapFrame(screenFrac){
-    // Smoothed cap center + FOV overscan to reduce jitter/moire.
-    const now = performance.now();
-    const dt = Math.min(0.05, Math.max(0.001, (now - _capLastT) * 0.001));
-    _capLastT = now;
-
-    // Center cap on the surface point under the center of the view (ray-sphere hit).
-    const oW = _tmpV1.copy(camera.position);
-    const dW = camera.getWorldDirection(_tmpV2).normalize();
-    let dirW = raySphereDir(oW, dW);
-    if (!dirW){
-      // fallback: point on sphere facing camera
-      dirW = _tmpV0.copy(camera.position).normalize().multiplyScalar(-1);
-    }
-
-    // Convert to planet-local so it co-rotates with the planet
-    _invQ.copy(planet.quaternion).invert();
-    const dirL = _tmpV3.copy(dirW).applyQuaternion(_invQ).normalize();
-
-    // Smooth the direction (lerp+normalize is stable and cheap)
-    const aDir = 1.0 - Math.exp(-dt * (P.capSmooth || 12.0));
-    _capDirSm.lerp(dirL, aDir).normalize();
-
-    // Tangent frame in local space (derived from smoothed direction)
-    const dS = _capDirSm;
-    const ref = Math.abs(dS.y) < 0.95 ? _capRefY : _capRefX;
-    const t1 = _tmpV1.crossVectors(ref, dS).normalize();
-    const t2 = _tmpV2.crossVectors(dS, t1).normalize();
-
-    UCap.uCapDir.value.copy(dS);
-    UCap.uCapT1.value.copy(t1);
-    UCap.uCapT2.value.copy(t2);
-
+  // Fallback: heuristic when frustum sampling doesn't hit (rare)
+  if((maxX <= 0.0 && maxY <= 0.0) || !isFinite(maxX) || !isFinite(maxY)){
     const halfDiag = halfDiagFovRad();
-    const sf = Math.max(2.0, Math.min(8.0, screenFrac));
-    const pad = (P.capPad !== undefined) ? P.capPad : 1.35;
-
-    // Overscan cap angle + smooth it so the projection doesn't "breathe" with tiny camera changes.
-    const capAng = THREE.MathUtils.clamp(halfDiag * pad / Math.sqrt(sf/2.0), THREE.MathUtils.degToRad(12), THREE.MathUtils.degToRad(75));
-    const desiredTan = Math.tan(capAng);
-    const aTan = 1.0 - Math.exp(-dt * (P.capTanSmooth || 10.0));
-    _capTanSm = THREE.MathUtils.lerp(_capTanSm, desiredTan, aTan);
-    UCap.uCapTan.value = _capTanSm;
+    const sf = Math.max(0.25, Math.min(screenFrac, 12.0));
+    const capAng = Math.min(Math.max(halfDiag * P.capPad / Math.sqrt(sf/2.0), 1.0*Math.PI/180), 75*Math.PI/180);
+    const capTan = Math.tan(capAng);
+    maxX = capTan;
+    maxY = capTan;
   }
 
-  // ---------- CPU height for ground-follow ----------
+  // Apply pad, clamp to sane bounds
+  const pad = P.capPad;
+  const minTan = Math.tan(0.5 * Math.PI/180);
+  const maxTan = Math.tan(85.0 * Math.PI/180);
+  const desiredX = Math.min(maxTan, Math.max(minTan, maxX * pad));
+  const desiredY = Math.min(maxTan, Math.max(minTan, maxY * pad));
+
+  // Smooth tan extents (separate axes)
+  const b = 1.0 - Math.pow(0.01, dt);
+  _capTanXSm = lerp(_capTanXSm, desiredX, b);
+  _capTanYSm = lerp(_capTanYSm, desiredY, b);
+
+  UCap.uCapDir.value.copy(dS);
+  UCap.uCapT1.value.copy(t1);
+  UCap.uCapT2.value.copy(t2);
+  UCap.uCapTan.value.set(_capTanXSm, _capTanYSm);
+}
+
+
+// ---------- CPU height for ground-follow ----------
   function heightAtDirLocal(dir){
     // Raw displacement (matches shader-ish elevation; may be negative).
     const x = dir.x*P.noiseScale + seedV.x;
@@ -2871,6 +2961,7 @@ tile: lat ${lat.toFixed(2)}°  lon ${lon.toFixed(2)}°  elev ${above.toFixed(4)}
     uTemperature:{ value: P.temperature },
     uExposure:   { value: P.exposure },
     uHaze:       { value: P.haze },
+    uDetailFade: { value: 1.0 },
 
     // clouds (shadow)
     uCloudScale: { value: P.cloudScale },
@@ -3012,6 +3103,11 @@ tile: lat ${lat.toFixed(2)}°  lon ${lon.toFixed(2)}°  elev ${above.toFixed(4)}
       extensions: { derivatives: true },
     });
     capMat.wireframe = !!P.wire;
+
+    // Slight depth bias to prevent z-fighting with the underlying high LOD shell
+    capMat.polygonOffset = true;
+    capMat.polygonOffsetFactor = -2;
+    capMat.polygonOffsetUnits = -2;
 
     const gCap0 = new THREE.PlaneGeometry(2.0, 2.0, 16, 16);
     surfaceCap = new THREE.Mesh(gCap0, capMat);
@@ -3641,6 +3737,8 @@ function applyPreset(name){
       }
     }
     P.capSegs = v;
+    rememberUserMaxQuality();
+    resetAutoTuning(true);
     if (EL.capSegsMode && !_capSegSync){ _capSegSync = true; EL.capSegsMode.value = String(v); _capSegSync = false; }
     requestCapGeom(P.capSegs);
     syncUI();
@@ -3805,6 +3903,11 @@ function applyPreset(name){
     UCommon.uTemperature.value = P.temperature;
     UCommon.uExposure.value = P.exposure;
     UCommon.uHaze.value = P.haze;
+    // Detail fade: keep high-frequency breakup up close, fade it out when far to avoid moiré.
+    {
+      const alt = Math.max(0, camera.position.length() - 1.0);
+      UCommon.uDetailFade.value = THREE.MathUtils.clamp(1.0 - alt / 0.6, 0.0, 1.0);
+    }
 
     // Clouds shadow controls (surface)
     UCommon.uCloudScale.value = P.cloudScale;
@@ -3866,123 +3969,385 @@ function applyPreset(name){
     stutterPct: 0,
     lastReport: t0
   };
+
+  // Adaptive tuning state:
+  // - Only reacts to *sustained* perf drops (time-based, not frame-count based)
+  // - Adds hysteresis + backoff to avoid oscillation on borderline devices
+  // - After repeated "re-up then immediately degrade" bounces, it stops trying to auto-increase
   const adapt = {
-    lowStreak: 0,
-    highStreak: 0,
-    lastChange: t0
+    lowMs: 0,
+    highMs: 0,
+    lastChange: t0,
+    lastPerfReport: 0,
+
+    // Auto-up backoff / lockout
+    lastImproveAt: 0,
+    bounceCount: 0,
+    autoUpLockUntil: 0,
+    autoUpDisabled: false,
+
+    // Bookkeeping
+    downCount: 0,
+    upCount: 0,
+
+    // User-selected "max" caps (auto-tuning will not exceed these)
+    userMax: null,
+
+    // Tunables
+    cooldownMs: 2500,
+    lowTriggerMs: 2500,   // must be "bad" for this long before stepping down
+    highTriggerMs: 6500,  // must be "good" for this long before stepping up
+    bounceWindowMs: 20000 // if we have to step down again within this time after a step-up, count as a bounce
   };
+
+  // Remember the user's chosen maxima (so auto-up never exceeds what they selected).
+  // Call this from UI event handlers (only user-initiated).
+  function rememberUserMaxQuality(){
+    // Note: don't call this during initial module evaluation before P exists.
+    if (!adapt.userMax) adapt.userMax = {};
+    adapt.userMax.resScale     = P.resScale;
+    adapt.userMax.pixRatioCap  = P.pixRatioCap;
+    adapt.userMax.lodPx        = P.lodPx;
+    adapt.userMax.farSegs      = P.farSegs;
+    adapt.userMax.midSegs      = P.midSegs;
+    adapt.userMax.highSegs     = P.highSegs;
+    adapt.userMax.capSegs      = P.capSegs;
+    adapt.userMax.capMaxPx     = P.capMaxPx;
+    adapt.userMax.capTexMaxPx  = P.capTexMaxPx;
+    adapt.userMax.cloudRes     = P.cloudRes;
+    adapt.userMax.cloudLayers  = P.cloudLayers;
+    adapt.userMax.clouds       = !!P.clouds;
+  }
+
+  function ensureUserMaxQuality(){
+    if (adapt.userMax) return;
+    adapt.userMax = {
+      resScale: P.resScale,
+      pixRatioCap: P.pixRatioCap,
+      lodPx: P.lodPx,
+      farSegs: P.farSegs,
+      midSegs: P.midSegs,
+      highSegs: P.highSegs,
+      capSegs: P.capSegs,
+      capMaxPx: P.capMaxPx,
+      capTexMaxPx: P.capTexMaxPx,
+      cloudRes: P.cloudRes,
+      cloudLayers: P.cloudLayers,
+      clouds: !!P.clouds
+    };
+  }
+
+  // Let users recover from "device can't handle re-ups" by toggling Auto quality/segs.
+  function resetAutoTuning(keepUserMax=false){
+    adapt.lowMs = 0;
+    adapt.highMs = 0;
+    adapt.lastPerfReport = 0;
+    adapt.lastChange = performance.now();
+
+    adapt.lastImproveAt = 0;
+    adapt.bounceCount = 0;
+    adapt.autoUpLockUntil = 0;
+    adapt.autoUpDisabled = false;
+
+    adapt.downCount = 0;
+    adapt.upCount = 0;
+
+    if (!keepUserMax) adapt.userMax = null;
+  }
 
   function updatePerf(dtMs, nowMs){
     perf.samples.push(dtMs);
     if (perf.samples.length > 180) perf.samples.shift();
 
-    if (nowMs - perf.lastReport < 500 || perf.samples.length < 12) return;
+    // Report ~2x per second; samples contain up to ~3s of history.
+    if (nowMs - perf.lastReport < 500) return;
+    perf.lastReport = nowMs;
 
-    const arr = perf.samples.slice();
-    arr.sort((a,b)=>a-b);
-    let sum = 0;
-    for (let i=0;i<arr.length;i++) sum += arr[i];
-    const avg = sum / arr.length;
+    const arr = perf.samples.slice().sort((a,b)=>a-b);
+    const sum = arr.reduce((a,b)=>a+b,0);
+    const avg = sum / Math.max(1, arr.length);
+    const p95 = arr[Math.floor(arr.length * 0.95)] ?? avg;
 
     perf.msAvg = avg;
-    perf.fps = 1000 / Math.max(0.001, avg);
-    perf.msP95 = arr[Math.floor(arr.length * 0.95)] || avg;
+    perf.msP95 = p95;
+    perf.fps = 1000 / Math.max(1e-6, avg);
 
-    let st = 0;
-    for (let i=0;i<arr.length;i++) if (arr[i] > 33.0) st++;
-    perf.stutterPct = (st / arr.length) * 100.0;
+    const stutters = arr.filter(ms=>ms>33).length;
+    perf.stutterPct = (stutters / Math.max(1, arr.length)) * 100;
+  }
 
-    perf.lastReport = nowMs;
+  const FAR_SEG_OPTS_UI  = [128,192,256,384,512,768,1024];
+  const MID_SEG_OPTS_UI  = [256,384,512,768,1024,1536,2048];
+  const HIGH_SEG_OPTS_UI = [512,768,1024,1536,2048,2560,3072];
+  const CAP_SEG_OPTS_UI  = [512,768,1024,1536,2048,2560,3072];
+
+  function stepDownOpt(opts, v){
+    const i = opts.indexOf(v);
+    if (i <= 0) return v;
+    return opts[i-1];
+  }
+  function stepUpOpt(opts, v){
+    const i = opts.indexOf(v);
+    if (i < 0 || i >= opts.length-1) return v;
+    return opts[i+1];
   }
 
   function degradeQuality(nowMs){
+    ensureUserMaxQuality();
     let changed = false;
 
-    // First, lower pixel ratio cap (fast win) if it's above 2.0
-    if (P.pixRatioCap > 2.0){
-      P.pixRatioCap = Math.max(2.0, +(P.pixRatioCap - 0.10).toFixed(2));
-      applyPixelRatio();
-      changed = true;
+    const inCap = !!(tileLock?.active && tileLock.capMode && P.capSegsMode !== "auto");
+
+    // --- GPU-side wins first (least "dumbing down" for a map) ---
+    if (!changed && P.autoQuality && P.pixRatioCap > 1.0){
+      const next = Math.max(1.0, Math.round((P.pixRatioCap - 0.25) * 100) / 100);
+      if (next < P.pixRatioCap){
+        P.pixRatioCap = next;
+        changed = true;
+      }
     }
 
-    // 1) Reduce render resolution first (cheap win; no geometry rebuild)
-    if (P.resScale > 0.65){
-      P.resScale = Math.max(0.60, +(P.resScale - 0.07).toFixed(2));
-      applyPixelRatio();
-      changed = true;
+    if (!changed && P.autoQuality && P.resScale > 0.75){
+      const next = Math.max(0.75, Math.round((P.resScale - 0.08) * 100) / 100);
+      if (next < P.resScale){
+        P.resScale = next;
+        changed = true;
+      }
     }
-    // 2) Then relax detail target (fewer sphere segments needed in autoSegs mode)
-    else if (P.autoSegs && P.lodPx < 18.0){
-      P.lodPx = Math.min(18.0, +(P.lodPx * 1.10).toFixed(1));
-      changed = true;
+
+    // --- Geometry knobs (only if Auto segs is on) ---
+    // In cap mode, dropping cap segs is usually the biggest geometry win.
+    if (!changed && P.autoSegs && inCap && P.capSegs > CAP_SEG_OPTS_UI[0]){
+      const next = stepDownOpt(CAP_SEG_OPTS_UI, P.capSegs);
+      if (next !== P.capSegs){
+        P.capSegs = next;
+        changed = true;
+      }
+    }
+
+    if (!changed && P.autoSegs && P.lodPx < 10){
+      const next = Math.min(10, Math.round((P.lodPx + 0.5) * 10) / 10);
+      if (next > P.lodPx){
+        P.lodPx = next;
+        changed = true;
+      }
+    }
+
+    if (!changed && P.autoSegs && P.highSegs > HIGH_SEG_OPTS_UI[0]){
+      const next = stepDownOpt(HIGH_SEG_OPTS_UI, P.highSegs);
+      if (next !== P.highSegs){
+        P.highSegs = next;
+        changed = true;
+      }
+    }
+    if (!changed && P.autoSegs && P.midSegs > MID_SEG_OPTS_UI[0]){
+      const next = stepDownOpt(MID_SEG_OPTS_UI, P.midSegs);
+      if (next !== P.midSegs){
+        P.midSegs = next;
+        changed = true;
+      }
+    }
+    if (!changed && P.autoSegs && P.farSegs > FAR_SEG_OPTS_UI[0]){
+      const next = stepDownOpt(FAR_SEG_OPTS_UI, P.farSegs);
+      if (next !== P.farSegs){
+        P.farSegs = next;
+        changed = true;
+      }
+    }
+
+    // --- Clouds are cosmetic: last resort (autoQuality only) ---
+    if (!changed && P.autoQuality && P.clouds){
+      if (P.cloudLayers > 6){
+        P.cloudLayers = Math.max(6, P.cloudLayers - 2);
+        changed = true;
+      } else if (P.cloudRes > 256){
+        P.cloudRes = Math.max(256, Math.floor(P.cloudRes / 2));
+        changed = true;
+      } else {
+        P.clouds = false;
+        changed = true;
+      }
     }
 
     if (changed){
+      adapt.downCount++;
       adapt.lastChange = nowMs;
+
+      // If we recently tried to step up and had to step down again soon,
+      // treat it as evidence the device can't sustain the higher tier.
+      if (adapt.lastImproveAt && (nowMs - adapt.lastImproveAt) < adapt.bounceWindowMs){
+        adapt.bounceCount++;
+        // Exponential-ish backoff
+        const lockFor = 30000 * Math.min(6, adapt.bounceCount);
+        adapt.autoUpLockUntil = Math.max(adapt.autoUpLockUntil, nowMs + lockFor);
+
+        // After enough bounces, stop trying to auto-increase for the rest of the session
+        if (adapt.bounceCount >= 2) adapt.autoUpDisabled = true;
+      }
+
+      applyPixelRatio();
       syncUI();
     }
+    return changed;
   }
 
   function improveQuality(nowMs){
+    ensureUserMaxQuality();
+    const mx = adapt.userMax;
     let changed = false;
 
-    // Try to increase geometric detail first (lower px/seg), then increase render resolution.
-    if (P.autoSegs && P.lodPx > 0.25){
-      P.lodPx = Math.max(0.25, +(P.lodPx * 0.92).toFixed(2));
-      changed = true;
+    const inCap = !!(tileLock?.active && tileLock.capMode && P.capSegsMode !== "auto");
+
+    // Guard: auto-up lockout
+    if (adapt.autoUpDisabled) return false;
+    if (nowMs < adapt.autoUpLockUntil) return false;
+
+    // Step up only one notch at a time.
+
+    // --- GPU-side first ---
+    if (!changed && P.autoQuality && P.resScale < mx.resScale){
+      const next = Math.min(mx.resScale, Math.round((P.resScale + 0.05) * 100) / 100);
+      if (next > P.resScale){
+        P.resScale = next;
+        changed = true;
+      }
     }
-    else if (P.resScale < 2.0){
-      P.resScale = Math.min(2.0, +(P.resScale + 0.05).toFixed(2));
-      applyPixelRatio();
-      changed = true;
+    if (!changed && P.autoQuality && P.pixRatioCap < mx.pixRatioCap){
+      const next = Math.min(mx.pixRatioCap, Math.round((P.pixRatioCap + 0.10) * 100) / 100);
+      if (next > P.pixRatioCap){
+        P.pixRatioCap = next;
+        changed = true;
+      }
     }
-    else if (P.pixRatioCap < 3.0){
-      P.pixRatioCap = Math.min(3.0, +(P.pixRatioCap + 0.10).toFixed(2));
-      applyPixelRatio();
-      changed = true;
+
+    // --- Geometry (Auto segs only) ---
+    if (!changed && P.autoSegs && P.lodPx > mx.lodPx){
+      const next = Math.max(mx.lodPx, Math.round((P.lodPx - 0.5) * 10) / 10);
+      if (next < P.lodPx){
+        P.lodPx = next;
+        changed = true;
+      }
+    }
+
+    if (!changed && P.autoSegs && inCap && P.capSegs < mx.capSegs){
+      const next = stepUpOpt(CAP_SEG_OPTS_UI, P.capSegs);
+      if (next !== P.capSegs && next <= mx.capSegs){
+        P.capSegs = next;
+        changed = true;
+      }
+    }
+
+    if (!changed && P.autoSegs && P.highSegs < mx.highSegs){
+      const next = stepUpOpt(HIGH_SEG_OPTS_UI, P.highSegs);
+      if (next !== P.highSegs && next <= mx.highSegs){
+        P.highSegs = next;
+        changed = true;
+      }
+    }
+    if (!changed && P.autoSegs && P.midSegs < mx.midSegs){
+      const next = stepUpOpt(MID_SEG_OPTS_UI, P.midSegs);
+      if (next !== P.midSegs && next <= mx.midSegs){
+        P.midSegs = next;
+        changed = true;
+      }
+    }
+    if (!changed && P.autoSegs && P.farSegs < mx.farSegs){
+      const next = stepUpOpt(FAR_SEG_OPTS_UI, P.farSegs);
+      if (next !== P.farSegs && next <= mx.farSegs){
+        P.farSegs = next;
+        changed = true;
+      }
+    }
+
+    // --- Restore clouds if user had them on (autoQuality only) ---
+    if (!changed && P.autoQuality){
+      if (!P.clouds && mx.clouds){
+        // Only re-enable if the user max says they had them on at capture time.
+        // If user explicitly turned clouds off later, rememberUserMaxQuality() would have captured that.
+        P.clouds = true;
+        changed = true;
+      } else if (P.clouds && P.cloudRes < mx.cloudRes){
+        P.cloudRes = Math.min(mx.cloudRes, P.cloudRes * 2);
+        changed = true;
+      } else if (P.clouds && P.cloudLayers < mx.cloudLayers){
+        P.cloudLayers = Math.min(mx.cloudLayers, P.cloudLayers + 2);
+        changed = true;
+      }
     }
 
     if (changed){
+      adapt.upCount++;
       adapt.lastChange = nowMs;
+      adapt.lastImproveAt = nowMs;
+
+      applyPixelRatio();
       syncUI();
     }
+    return changed;
   }
 
   function maybeAdaptQuality(nowMs){
-    if (!P.autoQuality) return;
-    if (!perf.fps) return;
+    if (!(P.autoQuality || P.autoSegs)) return;
 
-    // Cooldown to avoid oscillation
-    if (nowMs - adapt.lastChange < 1500) return;
+    // Only evaluate on new perf reports (~2x/sec), otherwise we'd count "streaks" in frames.
+    if (!perf.lastReport) return;
+    if (perf.lastReport === adapt.lastPerfReport) return;
 
-    const budget = 1000 / Math.max(10, P.targetFPS);
-    const low  = (perf.fps < (P.targetFPS - 2)) || (perf.msP95 > budget * 1.35) || (perf.stutterPct > 6);
-    // For vsync-locked targets, allow 'high' when we're stable and p95 is near budget.
-    const high = (perf.fps >= (P.targetFPS - 0.5)) && (perf.msP95 < budget * 1.08) && (perf.stutterPct < 2);
+    let stepMs = (adapt.lastPerfReport ? (perf.lastReport - adapt.lastPerfReport) : 500);
+    adapt.lastPerfReport = perf.lastReport;
+    if (!Number.isFinite(stepMs) || stepMs <= 0 || stepMs > 2000) stepMs = 500;
 
+    const budgetMs = 1000 / Math.max(10, P.targetFPS);
+    const avgMs = perf.msAvg;
+    const p95Ms = perf.msP95;
+    const stut = perf.stutterPct;
+
+    // "Low" means we are meaningfully missing the target or stuttering a lot.
+    const low =
+      (avgMs > budgetMs * 1.10) ||
+      (stut > 18) ||
+      (p95Ms > budgetMs * 2.8 && avgMs > budgetMs * 0.95);
+
+    // "High" means we have plenty of headroom and are not stuttering.
+    const high =
+      (avgMs < budgetMs * 0.92) &&
+      (stut < 6) &&
+      (p95Ms < budgetMs * 2.2);
+
+    // Decay toward 0 when not clearly low/high.
     if (low){
-      adapt.lowStreak++;
-      adapt.highStreak = 0;
+      adapt.lowMs += stepMs;
+      adapt.highMs = Math.max(0, adapt.highMs - stepMs * 0.5);
     } else if (high){
-      adapt.highStreak++;
-      adapt.lowStreak = 0;
+      adapt.highMs += stepMs;
+      adapt.lowMs = Math.max(0, adapt.lowMs - stepMs * 0.5);
     } else {
-      adapt.lowStreak = 0;
-      adapt.highStreak = 0;
+      adapt.lowMs = Math.max(0, adapt.lowMs - stepMs * 0.5);
+      adapt.highMs = Math.max(0, adapt.highMs - stepMs * 0.5);
     }
 
-    // Require sustained condition before changing
-    if (adapt.lowStreak >= 3){
-      adapt.lowStreak = 0;
-      degradeQuality(nowMs);
-    } else if (adapt.highStreak >= 6){
-      adapt.highStreak = 0;
-      improveQuality(nowMs);
+    // Cooldown after any change to prevent thrash.
+    if (nowMs - adapt.lastChange < adapt.cooldownMs) return;
+
+    // Require longer "high" after we've already proven the device is borderline.
+    const extraHigh = (adapt.bounceCount * 3000) + (Math.min(6, adapt.downCount) * 500);
+    const needHighMs = adapt.highTriggerMs + extraHigh;
+
+    if (adapt.lowMs >= adapt.lowTriggerMs){
+      // Step down once, then reset accumulation.
+      const did = degradeQuality(nowMs);
+      adapt.lowMs = 0;
+      adapt.highMs = 0;
+      return;
     }
-  }
 
-
-  function animate(now){
+    if (adapt.highMs >= needHighMs){
+      const did = improveQuality(nowMs);
+      adapt.lowMs = 0;
+      adapt.highMs = 0;
+      return;
+    }
+  }function animate(now){
     requestAnimationFrame(animate);
 
     const dtMsRaw = now - last;
